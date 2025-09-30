@@ -84,8 +84,10 @@ function useEventBus<T = any>() {
 }
 
 // ---- Components ----
-const Section: React.FC<{ title: string; right?: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>> = ({ title, right, className, children }) => (
-  <div className={classNames("bg-white rounded-2xl shadow-sm border p-4 md:p-6", className)}>
+const Section: React.FC<
+  { title: string; right?: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>
+> = ({ title, right, className, children, ...rest }) => (
+  <div {...rest} className={classNames("bg-white rounded-2xl shadow-sm border p-4 md:p-6", className)}>
     <div className="flex items-center justify-between mb-4">
       <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
       {right}
