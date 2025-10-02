@@ -11,5 +11,18 @@ duckdb>=0.9.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
+# Scientific computing
+scipy>=1.10.0
+
 # LangChain tools
 langchain-experimental>=0.0.40
+langsmith>=0.1.0
+
+# Web UI
+streamlit>=1.28.0
+Pillow>=10.0.0
+
+# REST API Backend
+flask>=3.0.0
+flask-cors>=4.0.0
+werkzeug>=3.0.0

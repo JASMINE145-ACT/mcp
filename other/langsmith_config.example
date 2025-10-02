@@ -1,0 +1,14 @@
+# LangSmith Configuration Example
+# 
+# 1. Sign up at: https://smith.langchain.com/
+# 2. Get your API key from Settings
+# 3. Add these to your .env file:
+
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+LANGCHAIN_API_KEY=your_langsmith_key_here
+LANGCHAIN_PROJECT=data-analysis-agent
+
+# Optional: Enable detailed debugging
+# LANGCHAIN_DEBUG=true
+
