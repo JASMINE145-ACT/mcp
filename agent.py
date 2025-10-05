@@ -5,8 +5,7 @@ import pandas as pd
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
-# 强制重新加载环境变量，覆盖已存在的值
-load_dotenv(override=True)
+load_dotenv()
 # LangSmith Configuration (Optional)
 # Automatically enabled if LANGCHAIN_TRACING_V2=true in .env
 # No code changes needed - just set environment variables!
@@ -14,7 +13,7 @@ from function import profile_dataframe_simple
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain.agents import Tool
-
+from config import require_secret
 # Try to import Gemini (optional)
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI
@@ -27,6 +26,9 @@ except ImportError:
 from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
 
+openai_api_key=require_secret("OPENAI_API_KEY")
+gemini_api_key=require_secret("GOOGLE_API_KEY")
+claude_api_key=require_secret("ANTHROPIC_API_KEY")
 # Define the state for LangGraph 
 class AnalysisState(TypedDict):
     question: str

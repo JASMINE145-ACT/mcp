@@ -8,6 +8,8 @@ import glob
 from PIL import Image
 from agent import DataAIAgent
 from function import profile_dataframe_simple
+import streamlit as st
+from config import require_secret
 
 # 页面配置
 st.set_page_config(
