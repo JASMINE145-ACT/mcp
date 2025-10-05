@@ -8,9 +8,10 @@ from PIL import Image
 from agent import DataAIAgent
 from function import profile_dataframe_simple
 import streamlit as st
-openai_api_key = st.secrets["OPENAI_API_KEY"]
-claude_api_key=st.secrets["ANTHROPIC_API_KEY"]
-gemini_api_key=st.secrets["GOOGLE_API_KEY"]
+from config import require_secret
+openai_api_key = require_secret["OPENAI_API_KEY"]
+claude_api_key=require_secret["ANTHROPIC_API_KEY"]
+gemini_api_key=require_secret["GOOGLE_API_KEY"]
 # 页面配置
 st.set_page_config(
     page_title="AI Data Analysis Agent",
