@@ -218,6 +218,7 @@ class DataAIAgent:
                 import sklearn
                 import matplotlib
                 import platform
+                import statsmodels
                 matplotlib.use('Agg')
                 import matplotlib.pyplot as plt
                 import seaborn as sns
