@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 # LangSmith Configuration (Optional)
 # Automatically enabled if LANGCHAIN_TRACING_V2=true in .env
 # No code changes needed - just set environment variables!
