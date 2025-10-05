@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import re
 from pathlib import Path
 import glob
 from PIL import Image
@@ -88,7 +89,7 @@ if page == "📁 上传数据":
                 
                 # 数据预览
                 st.subheader("数据预览")
-                st.dataframe(df.head(20), use_container_width=True)
+                st.dataframe(df.head(20), width='stretch')
                 
                 # 基本统计信息
                 st.subheader("基本统计")
@@ -96,7 +97,7 @@ if page == "📁 上传数据":
                 
                 with col_stat1:
                     st.write("**数值列统计**")
-                    st.dataframe(df.describe(), use_container_width=True)
+                    st.dataframe(df.describe(), width='stretch')
                 
                 with col_stat2:
                     st.write("**列信息**")
@@ -106,10 +107,10 @@ if page == "📁 上传数据":
                         '非空数': df.count().values,
                         '空值数': df.isnull().sum().values
                     })
-                    st.dataframe(info_df, use_container_width=True)
+                    st.dataframe(info_df, width='stretch')
                 
                 # 确认按钮
-                if st.button("🚀 使用此数据集", type="primary", use_container_width=True):
+                if st.button("🚀 使用此数据集", type="primary", width=False):
                     # 保存到 session state
                     st.session_state.df = df
                     
@@ -201,7 +202,7 @@ elif page == "💬 AI 对话":
                 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
                 
                 with col_btn1:
-                    if st.button("✅ 确认执行", type="primary", use_container_width=True):
+                    if st.button("✅ 确认执行", type="primary", width=False):
                         with st.spinner("🔄 执行中..."):
                             # 确认并执行
                             st.session_state.conversation_state['plan_confirmed'] = True
@@ -230,7 +231,7 @@ elif page == "💬 AI 对话":
                             st.rerun()
                 
                 with col_btn2:
-                    if st.button("❌ 重新规划", use_container_width=True):
+                    if st.button("❌ 重新规划", width=False):
                         st.session_state.waiting_for_confirm = False
                         st.session_state.pending_plan = None
                         st.session_state.conversation_state = None
@@ -264,7 +265,7 @@ elif page == "💬 AI 对话":
                 col_submit, col_clear = st.columns([1, 3])
                 
                 with col_submit:
-                    if st.button("🚀 开始分析", type="primary", use_container_width=True):
+                    if st.button("🚀 开始分析", type="primary", width=False):
                         if question.strip():
                             st.session_state.current_question = question.strip()
                             
@@ -302,7 +303,7 @@ elif page == "💬 AI 对话":
                             st.warning("请输入问题")
                 
                 with col_clear:
-                    if st.button("🗑️ 清空历史", use_container_width=True):
+                    if st.button("🗑️ 清空历史", width=False):
                         st.session_state.analysis_results = []
                         st.session_state.conversation_state = None
                         st.session_state.waiting_for_confirm = False
@@ -323,7 +324,7 @@ elif page == "💬 AI 对话":
             
             st.write("**示例问题（点击使用）：**")
             for eq in example_questions:
-                if st.button(f"💬 {eq}", key=f"example_{eq}", use_container_width=True):
+                if st.button(f"💬 {eq}", key=f"example_{eq}", width=False):
                     st.session_state.current_question = eq
                     st.rerun()
             
@@ -357,7 +358,7 @@ elif page == "📈 查看结果":
         )
         
         # 清空按钮
-        if st.sidebar.button("🗑️ 清空所有结果", use_container_width=True):
+        if st.sidebar.button("🗑️ 清空所有结果", width=False):
             st.session_state.analysis_results = []
             st.rerun()
         
@@ -390,8 +391,18 @@ elif page == "📈 查看结果":
                     with cols[idx % 2]:
                         try:
                             image = Image.open(png_file)
-                            st.image(image, caption=png_file, use_container_width=True)
-                        except:
+                            st.image(image, caption=os.path.basename(png_file), width='stretch')
+                            
+                            # 添加下载按钮
+                            with open(png_file, 'rb') as f:
+                                st.download_button(
+                                    label=f"📥 下载 {os.path.basename(png_file)}",
+                                    data=f,
+                                    file_name=os.path.basename(png_file),
+                                    mime="image/png",
+                                    key=f"download_img_{idx}_{png_file}"
+                                )
+                        except Exception as e:
                             st.warning(f"无法加载图片：{png_file}")
             else:
                 st.info("没有生成图表")
@@ -455,6 +466,44 @@ elif page == "📈 查看结果":
                 file_name=f"analysis_{selected_idx+1}.py",
                 mime="text/plain"
             )
+            
+            # 显示此分析关联的图片
+            st.markdown("---")
+            st.markdown("### 📊 生成的图表")
+            
+            # 从执行结果中提取图片文件名
+            exec_result = result.get('execution_result', '')
+            if 'Plot created successfully:' in exec_result:
+                # 提取文件名
+                match = re.search(r'Plot created successfully: (.+?)(?:\n|$)', exec_result)
+                if match:
+                    files_str = match.group(1).strip()
+                    image_files = [f.strip() for f in files_str.split(',')]
+                    
+                    cols = st.columns(2)
+                    for idx, img_file in enumerate(image_files):
+                        with cols[idx % 2]:
+                            img_path = os.path.join('.', img_file)
+                            if os.path.exists(img_path):
+                                try:
+                                    image = Image.open(img_path)
+                                    st.image(image, caption=img_file, width='stretch')
+                                    
+                                    # 添加下载按钮
+                                    with open(img_path, 'rb') as f:
+                                        st.download_button(
+                                            label=f"📥 下载 {img_file}",
+                                            data=f,
+                                            file_name=img_file,
+                                            mime="image/png",
+                                            key=f"download_history_img_{selected_idx}_{idx}"
+                                        )
+                                except Exception as e:
+                                    st.warning(f"无法加载图片：{img_file}")
+                            else:
+                                st.info(f"图片文件已不存在：{img_file}")
+            else:
+                st.info("此分析未生成图表")
         
         with tab3:
             st.markdown("### 📋 分析计划")
