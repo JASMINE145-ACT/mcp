@@ -59,21 +59,28 @@ else:
 # ============================================================================
 if page == "📁 上传数据":
     st.title("📁 数据上传")
-    st.markdown("上传 CSV 文件开始分析")
+    st.markdown("上传 CSV 或 Excel 文件开始分析")
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
         uploaded_file = st.file_uploader(
-            "选择 CSV 文件",
-            type=['csv'],
-            help="支持 CSV 格式文件"
+            "选择数据文件",
+            type=['csv', 'xlsx', 'xls'],
+            help="支持 CSV 和 Excel (xlsx/xls) 格式文件"
         )
         
         if uploaded_file is not None:
             try:
-                # 读取数据
-                df = pd.read_csv(uploaded_file)
+                # 根据文件扩展名读取数据
+                file_extension = uploaded_file.name.split('.')[-1].lower()
+                if file_extension == 'csv':
+                    df = pd.read_csv(uploaded_file)
+                elif file_extension in ['xlsx', 'xls']:
+                    df = pd.read_excel(uploaded_file)
+                else:
+                    st.error(f"不支持的文件格式：{file_extension}")
+                    st.stop()        
                 
                 # 显示数据预览
                 st.success(f"✅ 成功加载文件：{uploaded_file.name}")
@@ -285,7 +292,10 @@ elif page == "💬 AI 对话":
                                         'conversation_history': conv_state.get('conversation_history', []),
                                         'plan_iterations': conv_state.get('plan_iterations', []),
                                         'user_feedback': '',
-                                        'plan_confirmed': False
+                                        'plan_confirmed': False,
+                                        'execution_error': False,
+                                        'error_message': '',
+                                        'retry_count': 0
                                     }
                                     st.rerun()
                         else:
@@ -363,6 +373,10 @@ elif page == "📈 查看结果":
         tab1, tab2, tab3, tab4 = st.tabs(["📊 结果", "💻 代码", "📋 计划", "🔍 详情"])
         
         with tab1:
+            # 显示执行信息（如果有重试）
+            exec_result = result.get('execution_result', '')
+            if exec_result and 'error' in exec_result.lower():
+                st.warning("⚠️ 执行过程中遇到了错误，系统已自动重试并修复")
             
             # 显示生成的图片
             st.markdown("### 📈 生成的图表")
@@ -376,7 +390,7 @@ elif page == "📈 查看结果":
                     with cols[idx % 2]:
                         try:
                             image = Image.open(png_file)
-                            st.image(image, caption=png_file, use_column_width=True)
+                            st.image(image, caption=png_file, use_container_width=True)
                         except:
                             st.warning(f"无法加载图片：{png_file}")
             else:
@@ -387,9 +401,45 @@ elif page == "📈 查看结果":
             
             validation = result.get('validation', 'N/A')
             
-            # 直接显示自然语言文本，不解析 JSON
+            # 解析并格式化显示验证结果
             if validation and validation != 'N/A':
-                st.markdown(validation)
+                try:
+                    # 尝试解析 JSON（可能包含 markdown 代码块）
+                    json_text = validation.strip()
+                    
+                    # 移除可能的 markdown 代码块标记
+                    if json_text.startswith('```'):
+                        lines = json_text.split('\n')
+                        if lines[0].startswith('```'):
+                            lines = lines[1:]
+                        if lines and lines[-1].strip() == '```':
+                            lines = lines[:-1]
+                        json_text = '\n'.join(lines).strip()
+                    
+                    # 解析 JSON
+                    val_data = json.loads(json_text)
+                    
+                    # 显示最终答案
+                    if val_data.get('final_answer'):
+                        st.markdown("### 📌 分析结论")
+                        st.markdown(val_data['final_answer'])
+                        st.markdown("")
+                    
+                    # 显示详细解读
+                    if val_data.get('result_interpretation'):
+                        st.markdown("### 💡 详细解读")
+                        st.markdown(val_data['result_interpretation'])
+                        st.markdown("")           
+                    
+                    # 显示建议
+                    if val_data.get('recommendations'):
+                        st.markdown("### 💭 进一步建议")
+                        st.markdown(val_data['recommendations'])
+                    
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    # 如果不是 JSON 或格式不对，直接显示文本
+                    st.markdown("### 📊 分析结果")
+                    st.markdown(validation)
             else:
                 st.info("暂无分析结果")
         
@@ -418,6 +468,37 @@ elif page == "📈 查看结果":
         
         with tab4:
             st.markdown("### 🔍 完整结果")
+            
+            # 显示执行统计信息
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            
+            with col_stat1:
+                # 检查是否有重试
+                exec_result = result.get('execution_result', '')
+                if 'error' in exec_result.lower() and '✅' not in exec_result:
+                    st.metric("执行状态", "❌ 失败")
+                else:
+                    st.metric("执行状态", "✅ 成功")
+            
+            with col_stat2:
+                # 尝试从结果中提取重试信息
+                workflow_info = result.get('workflow', '')
+                if workflow_info:
+                    st.metric("工作流", "LangGraph")
+            
+            with col_stat3:
+                code_length = len(result.get('code', ''))
+                st.metric("代码长度", f"{code_length} 字符")
+            
+            st.markdown("---")
+            
+            # 显示执行结果详情
+            if exec_result:
+                with st.expander("⚡ 执行结果详情", expanded=False):
+                    st.code(exec_result, language='text')
+            
+            st.markdown("---")
+            st.markdown("### 📦 完整 JSON 数据")
             st.json(result)
 
 # ============================================================================

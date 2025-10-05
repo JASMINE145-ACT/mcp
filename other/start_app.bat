@@ -5,9 +5,13 @@ echo   Starting Backend and Frontend
 echo ========================================
 echo.
 
+REM Get the directory of this script and go to project root
+cd /d "%~dp0"
+cd ..
+
 REM Start Flask Backend
 echo [1/2] Starting Flask Backend on port 8000...
-start "Flask Backend" cmd /k "python backend_api.py"
+start "Flask Backend" cmd /k "python other\backend_api.py"
 timeout /t 3 /nobreak > nul
 
 REM Start Next.js Frontend

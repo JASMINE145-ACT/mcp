@@ -7,18 +7,25 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pandas as pd
 import os
+import sys
 import json
-from agent import DataAIAgent
-from function import profile_dataframe_simple
 from werkzeug.utils import secure_filename
 import glob
 from datetime import datetime
+
+# Add parent directory to path to import agent and function modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agent import DataAIAgent
+from function import profile_dataframe_simple
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Next.js frontend
 
 # Configuration
-UPLOAD_FOLDER = 'uploads'
+# Use absolute path for upload folder
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 ALLOWED_EXTENSIONS = {'csv'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max

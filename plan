@@ -1,0 +1,63 @@
+1. 企业销售分析
+2.rag for code generation 
+create great template for code generation
+3. nano model should give some suggestion which also need to build rag
+4. context enginee for nano
+5.RAG Playbook
+6. rag + tool calling
+🔹 一、参数估计与区间估计
+
+点估计（均值、比例、方差）
+比如估计客户平均消费额、设备平均寿命。
+
+置信区间（Confidence Interval）
+用来表达参数的不确定性，如「我们有95%的把握，平均缺陷率在0.8%–1.2%之间」。
+
+🔹 二、假设检验（Hypothesis Testing）
+
+最常见于 质量检测、市场对比实验、A/B测试。
+
+t检验（单样本、独立样本、配对样本） → 比较平均值差异
+
+Z检验（大样本/已知方差情况下）
+
+卡方检验 (Chi-square test) → 适用于分类变量，常见于客户分布是否符合预期、市场调查结果
+
+F检验 / 方差分析 (ANOVA) → 比较多组均值，比如不同生产线的质量差异
+
+比例检验 → 检查转化率、合格率的差异
+
+🔹 三、回归与相关分析
+
+广泛用于 预测和因果分析。
+
+简单/多元线性回归 → 预测销量、成本、需求
+
+逻辑回归 (Logistic Regression) → 预测二分类结果（是否购买、是否流失）
+
+相关分析 (Correlation) → 分析变量间线性关系，比如广告投入与销售额的相关性
+
+🔹 四、实验设计与A/B测试
+
+在互联网和制造业中极为常见：
+
+A/B Test：两个方案对比（新旧页面转化率差异）
+
+Factorial Design（多因素实验设计）：常用于工厂过程优化（比如温度×压力×时间对产品缺陷率的影响）
+
+🔹 五、质量管理相关方法
+
+工业生产尤其依赖这些：
+
+控制图 (Control Charts, SPC) → 监控生产过程是否稳定
+
+过程能力分析 (Process Capability, Cp, Cpk)
+
+假设检验 → 检查批次是否合格
+
+🔹 六、非参数方法（当分布假设不满足时）
+
+Mann-Whitney U 检验
+
+Kruskal-Wallis 检验
+常用于实际数据不服从正态分布时，比如用户行为数据。

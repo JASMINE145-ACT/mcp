@@ -1,0 +1,452 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting chainlit
+  Obtaining dependency information for chainlit from https://files.pythonhosted.org/packages/fc/d9/d0894dbced4a0d722a75a64f6471a17fe2bbf7c74cc066cabbbe4150f517/chainlit-2.8.2-py3-none-any.whl.metadata
+  Downloading chainlit-2.8.2-py3-none-any.whl.metadata (8.1 kB)
+Collecting aiofiles<25.0.0,>=23.1.0 (from chainlit)
+  Obtaining dependency information for aiofiles<25.0.0,>=23.1.0 from https://files.pythonhosted.org/packages/a5/45/30bb92d442636f570cb5651bc661f52b610e2eec3f891a5dc3a4c3667db0/aiofiles-24.1.0-py3-none-any.whl.metadata
+  Downloading aiofiles-24.1.0-py3-none-any.whl.metadata (10 kB)
+Collecting asyncer<0.1.0,>=0.0.8 (from chainlit)
+  Obtaining dependency information for asyncer<0.1.0,>=0.0.8 from https://files.pythonhosted.org/packages/cc/06/751c1104cf03d4cea639214e0ccaffae7bcc02b250c1fffd211920510dd8/asyncer-0.0.9-py3-none-any.whl.metadata
+  Downloading asyncer-0.0.9-py3-none-any.whl.metadata (6.8 kB)
+Requirement already satisfied: click<9.0.0,>=8.1.3 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from chainlit) (8.2.1)
+Collecting dataclasses-json<0.7.0,>=0.6.7 (from chainlit)
+  Obtaining dependency information for dataclasses-json<0.7.0,>=0.6.7 from https://files.pythonhosted.org/packages/c3/be/d0d44e092656fe7a06b55e6103cbce807cdbdee17884a5367c68c9860853/dataclasses_json-0.6.7-py3-none-any.whl.metadata
+  Downloading dataclasses_json-0.6.7-py3-none-any.whl.metadata (25 kB)
+Collecting fastapi<0.117,>=0.116.1 (from chainlit)
+  Obtaining dependency information for fastapi<0.117,>=0.116.1 from https://files.pythonhosted.org/packages/32/e4/c543271a8018874b7f682bf6156863c416e1334b8ed3e51a69495c5d4360/fastapi-0.116.2-py3-none-any.whl.metadata
+  Downloading fastapi-0.116.2-py3-none-any.whl.metadata (28 kB)
+Collecting filetype<2.0.0,>=1.2.0 (from chainlit)
+  Obtaining dependency information for filetype<2.0.0,>=1.2.0 from https://files.pythonhosted.org/packages/18/79/1b8fa1bb3568781e84c9200f951c735f3f157429f44be0495da55894d620/filetype-1.2.0-py2.py3-none-any.whl.metadata
+  Downloading filetype-1.2.0-py2.py3-none-any.whl.metadata (6.5 kB)
+Requirement already satisfied: httpx>=0.23.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from chainlit) (0.28.1)
+Collecting lazify<0.5.0,>=0.4.0 (from chainlit)
+  Obtaining dependency information for lazify<0.5.0,>=0.4.0 from https://files.pythonhosted.org/packages/03/a5/866b44697cee47d1cae429ed370281d937ad4439f71af82a6baaa139d26a/Lazify-0.4.0-py2.py3-none-any.whl.metadata
+  Downloading Lazify-0.4.0-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting literalai==0.1.201 (from chainlit)
+  Downloading literalai-0.1.201.tar.gz (67 kB)
+     ---------------------------------------- 67.8/67.8 kB 3.6 MB/s eta 0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting mcp<2.0.0,>=1.11.0 (from chainlit)
+  Obtaining dependency information for mcp<2.0.0,>=1.11.0 from https://files.pythonhosted.org/packages/c9/0e/7cebc88e17daf94ebe28c95633af595ccb2864dc2ee7abd75542d98495cc/mcp-1.16.0-py3-none-any.whl.metadata
+  Downloading mcp-1.16.0-py3-none-any.whl.metadata (80 kB)
+     ---------------------------------------- 80.4/80.4 kB 4.4 MB/s eta 0:00:00
+Requirement already satisfied: nest-asyncio<2.0.0,>=1.6.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from chainlit) (1.6.0)
+Requirement already satisfied: packaging>=23.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from chainlit) (25.0)
+Collecting pydantic-settings>=2.10.1 (from chainlit)
+  Obtaining dependency information for pydantic-settings>=2.10.1 from https://files.pythonhosted.org/packages/83/d6/887a1ff844e64aa823fb4905978d882a633cfe295c32eacad582b78a7d8b/pydantic_settings-2.11.0-py3-none-any.whl.metadata
+  Downloading pydantic_settings-2.11.0-py3-none-any.whl.metadata (3.4 kB)
+Requirement already satisfied: pydantic<3,>=2.7.2 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from chainlit) (2.11.7)
+Collecting pyjwt<3.0.0,>=2.8.0 (from chainlit)
+  Obtaining dependency information for pyjwt<3.0.0,>=2.8.0 from https://files.pythonhosted.org/packages/61/ad/689f02752eeec26aed679477e80e632ef1b682313be70793d798c1d5fc8f/PyJWT-2.10.1-py3-none-any.whl.metadata
+  Downloading PyJWT-2.10.1-py3-none-any.whl.metadata (4.0 kB)
+Requirement already satisfied: python-dotenv<2.0.0,>=1.0.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from chainlit) (1.1.1)
+Collecting python-multipart<1.0.0,>=0.0.18 (from chainlit)
+  Obtaining dependency information for python-multipart<1.0.0,>=0.0.18 from https://files.pythonhosted.org/packages/45/58/38b5afbc1a800eeea951b9285d3912613f2603bdf897a4ab0f4bd7f405fc/python_multipart-0.0.20-py3-none-any.whl.metadata
+  Downloading python_multipart-0.0.20-py3-none-any.whl.metadata (1.8 kB)
+Collecting python-socketio<6.0.0,>=5.11.0 (from chainlit)
+  Obtaining dependency information for python-socketio<6.0.0,>=5.11.0 from https://files.pythonhosted.org/packages/d5/5e/302c3499a134a52b68e4e6fb345cea52ab1c41460949bcdb09f8bd0e3594/python_socketio-5.14.1-py3-none-any.whl.metadata
+  Downloading python_socketio-5.14.1-py3-none-any.whl.metadata (3.2 kB)
+Collecting starlette>=0.47.2 (from chainlit)
+  Obtaining dependency information for starlette>=0.47.2 from https://files.pythonhosted.org/packages/be/72/2db2f49247d0a18b4f1bb9a5a39a0162869acf235f3a96418363947b3d46/starlette-0.48.0-py3-none-any.whl.metadata
+  Downloading starlette-0.48.0-py3-none-any.whl.metadata (6.3 kB)
+Collecting syncer<3.0.0,>=2.0.3 (from chainlit)
+  Downloading syncer-2.0.3.tar.gz (11 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting tomli<3.0.0,>=2.0.1 (from chainlit)
+  Obtaining dependency information for tomli<3.0.0,>=2.0.1 from https://files.pythonhosted.org/packages/6a/1c/4a2dcde4a51b81be3530565e92eda625d94dafb46dbeb15069df4caffc34/tomli-2.2.1-cp311-cp311-win_amd64.whl.metadata
+  Downloading tomli-2.2.1-cp311-cp311-win_amd64.whl.metadata (12 kB)
+Collecting uvicorn>=0.35.0 (from chainlit)
+  Obtaining dependency information for uvicorn>=0.35.0 from https://files.pythonhosted.org/packages/85/cd/584a2ceb5532af99dd09e50919e3615ba99aa127e9850eafe5f31ddfdb9a/uvicorn-0.37.0-py3-none-any.whl.metadata
+  Downloading uvicorn-0.37.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting watchfiles<1.0.0,>=0.20.0 (from chainlit)
+  Obtaining dependency information for watchfiles<1.0.0,>=0.20.0 from https://files.pythonhosted.org/packages/8a/8b/badd9247d6ec25f5f634a9b3d0d92e39c045824ec7e8afcedca8ee52c1e2/watchfiles-0.24.0-cp311-none-win_amd64.whl.metadata
+  Downloading watchfiles-0.24.0-cp311-none-win_amd64.whl.metadata (5.0 kB)
+Collecting chevron>=0.14.0 (from literalai==0.1.201->chainlit)
+  Obtaining dependency information for chevron>=0.14.0 from https://files.pythonhosted.org/packages/52/93/342cc62a70ab727e093ed98e02a725d85b746345f05d2b5e5034649f4ec8/chevron-0.14.0-py3-none-any.whl.metadata
+  Downloading chevron-0.14.0-py3-none-any.whl.metadata (4.9 kB)
+Collecting traceloop-sdk>=0.33.12 (from literalai==0.1.201->chainlit)
+  Obtaining dependency information for traceloop-sdk>=0.33.12 from https://files.pythonhosted.org/packages/b5/db/96fb5fd58b9158520a31601a25b886956327eb3927a83f81ca2804cc32b0/traceloop_sdk-0.47.3-py3-none-any.whl.metadata
+  Downloading traceloop_sdk-0.47.3-py3-none-any.whl.metadata (4.3 kB)
+Requirement already satisfied: anyio<5.0,>=3.4.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from asyncer<0.1.0,>=0.0.8->chainlit) (3.7.1)
+Requirement already satisfied: colorama in c:\users\m1774\appdata\roaming\python\python311\site-packages (from click<9.0.0,>=8.1.3->chainlit) (0.4.6)
+Collecting marshmallow<4.0.0,>=3.18.0 (from dataclasses-json<0.7.0,>=0.6.7->chainlit)
+  Obtaining dependency information for marshmallow<4.0.0,>=3.18.0 from https://files.pythonhosted.org/packages/34/75/51952c7b2d3873b44a0028b1bd26a25078c18f92f256608e8d1dc61b39fd/marshmallow-3.26.1-py3-none-any.whl.metadata
+  Downloading marshmallow-3.26.1-py3-none-any.whl.metadata (7.3 kB)
+Collecting typing-inspect<1,>=0.4.0 (from dataclasses-json<0.7.0,>=0.6.7->chainlit)
+  Obtaining dependency information for typing-inspect<1,>=0.4.0 from https://files.pythonhosted.org/packages/65/f3/107a22063bf27bdccf2024833d3445f4eea42b2e598abfbd46f6a63b6cb0/typing_inspect-0.9.0-py3-none-any.whl.metadata
+  Downloading typing_inspect-0.9.0-py3-none-any.whl.metadata (1.5 kB)
+Requirement already satisfied: typing-extensions>=4.8.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from fastapi<0.117,>=0.116.1->chainlit) (4.14.0)
+Requirement already satisfied: certifi in c:\users\m1774\appdata\roaming\python\python311\site-packages (from httpx>=0.23.0->chainlit) (2025.6.15)
+Requirement already satisfied: httpcore==1.* in c:\users\m1774\appdata\roaming\python\python311\site-packages (from httpx>=0.23.0->chainlit) (1.0.9)
+Requirement already satisfied: idna in c:\users\m1774\appdata\roaming\python\python311\site-packages (from httpx>=0.23.0->chainlit) (3.10)
+Requirement already satisfied: h11>=0.16 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from httpcore==1.*->httpx>=0.23.0->chainlit) (0.16.0)
+Collecting anyio<5.0,>=3.4.0 (from asyncer<0.1.0,>=0.0.8->chainlit)
+  Obtaining dependency information for anyio<5.0,>=3.4.0 from https://files.pythonhosted.org/packages/15/b3/9b1a8074496371342ec1e796a96f99c82c945a339cd81a8e73de28b4cf9e/anyio-4.11.0-py3-none-any.whl.metadata
+  Downloading anyio-4.11.0-py3-none-any.whl.metadata (4.1 kB)
+Collecting httpx-sse>=0.4 (from mcp<2.0.0,>=1.11.0->chainlit)
+  Obtaining dependency information for httpx-sse>=0.4 from https://files.pythonhosted.org/packages/25/0a/6269e3473b09aed2dab8aa1a600c70f31f00ae1349bee30658f7e358a159/httpx_sse-0.4.1-py3-none-any.whl.metadata
+  Downloading httpx_sse-0.4.1-py3-none-any.whl.metadata (9.4 kB)
+Requirement already satisfied: jsonschema>=4.20.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from mcp<2.0.0,>=1.11.0->chainlit) (4.24.0)
+Requirement already satisfied: pywin32>=310 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from mcp<2.0.0,>=1.11.0->chainlit) (310)
+Collecting sse-starlette>=1.6.1 (from mcp<2.0.0,>=1.11.0->chainlit)
+  Obtaining dependency information for sse-starlette>=1.6.1 from https://files.pythonhosted.org/packages/ef/10/c78f463b4ef22eef8491f218f692be838282cd65480f6e423d7730dfd1fb/sse_starlette-3.0.2-py3-none-any.whl.metadata
+  Downloading sse_starlette-3.0.2-py3-none-any.whl.metadata (11 kB)
+Requirement already satisfied: annotated-types>=0.6.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from pydantic<3,>=2.7.2->chainlit) (0.7.0)
+Requirement already satisfied: pydantic-core==2.33.2 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from pydantic<3,>=2.7.2->chainlit) (2.33.2)
+Requirement already satisfied: typing-inspection>=0.4.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from pydantic<3,>=2.7.2->chainlit) (0.4.1)
+Collecting bidict>=0.21.0 (from python-socketio<6.0.0,>=5.11.0->chainlit)
+  Obtaining dependency information for bidict>=0.21.0 from https://files.pythonhosted.org/packages/99/37/e8730c3587a65eb5645d4aba2d27aae48e8003614d6aaf15dda67f702f1f/bidict-0.23.1-py3-none-any.whl.metadata
+  Downloading bidict-0.23.1-py3-none-any.whl.metadata (8.7 kB)
+Collecting python-engineio>=4.11.0 (from python-socketio<6.0.0,>=5.11.0->chainlit)
+  Obtaining dependency information for python-engineio>=4.11.0 from https://files.pythonhosted.org/packages/d8/f0/c5aa0a69fd9326f013110653543f36ece4913c17921f3e1dbd78e1b423ee/python_engineio-4.12.3-py3-none-any.whl.metadata
+  Downloading python_engineio-4.12.3-py3-none-any.whl.metadata (2.2 kB)
+Requirement already satisfied: sniffio>=1.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from anyio<5.0,>=3.4.0->asyncer<0.1.0,>=0.0.8->chainlit) (1.3.1)
+Requirement already satisfied: attrs>=22.2.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from jsonschema>=4.20.0->mcp<2.0.0,>=1.11.0->chainlit) (25.3.0)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from jsonschema>=4.20.0->mcp<2.0.0,>=1.11.0->chainlit) (2025.4.1)
+Requirement already satisfied: referencing>=0.28.4 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from jsonschema>=4.20.0->mcp<2.0.0,>=1.11.0->chainlit) (0.36.2)
+Requirement already satisfied: rpds-py>=0.7.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from jsonschema>=4.20.0->mcp<2.0.0,>=1.11.0->chainlit) (0.25.1)
+Collecting simple-websocket>=0.10.0 (from python-engineio>=4.11.0->python-socketio<6.0.0,>=5.11.0->chainlit)
+  Obtaining dependency information for simple-websocket>=0.10.0 from https://files.pythonhosted.org/packages/52/59/0782e51887ac6b07ffd1570e0364cf901ebc36345fea669969d2084baebb/simple_websocket-1.1.0-py3-none-any.whl.metadata
+  Downloading simple_websocket-1.1.0-py3-none-any.whl.metadata (1.5 kB)
+Requirement already satisfied: aiohttp<4.0.0,>=3.11.11 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (3.12.15)
+Collecting cuid<0.5,>=0.4 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Downloading cuid-0.4.tar.gz (5.0 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting deprecated<2.0.0,>=1.2.14 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for deprecated<2.0.0,>=1.2.14 from https://files.pythonhosted.org/packages/6e/c6/ac0b6c1e2d138f1002bcf799d330bd6d85084fece321e662a14223794041/Deprecated-1.2.18-py2.py3-none-any.whl.metadata
+  Downloading Deprecated-1.2.18-py2.py3-none-any.whl.metadata (5.7 kB)
+Requirement already satisfied: jinja2<4.0.0,>=3.1.5 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (3.1.6)
+Collecting opentelemetry-api<2.0.0,>=1.28.0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-api<2.0.0,>=1.28.0 from https://files.pythonhosted.org/packages/91/48/28ed9e55dcf2f453128df738210a980e09f4e468a456fa3c763dbc8be70a/opentelemetry_api-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_api-1.37.0-py3-none-any.whl.metadata (1.5 kB)
+Collecting opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0 from https://files.pythonhosted.org/packages/39/17/46630b74751031a658706bef23ac99cdc2953cd3b2d28ec90590a0766b3e/opentelemetry_exporter_otlp_proto_grpc-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_exporter_otlp_proto_grpc-1.37.0-py3-none-any.whl.metadata (2.4 kB)
+Collecting opentelemetry-exporter-otlp-proto-http<2.0.0,>=1.28.0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-exporter-otlp-proto-http<2.0.0,>=1.28.0 from https://files.pythonhosted.org/packages/e9/e9/70d74a664d83976556cec395d6bfedd9b85ec1498b778367d5f93e373397/opentelemetry_exporter_otlp_proto_http-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_exporter_otlp_proto_http-1.37.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-alephalpha==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-alephalpha==0.47.3 from https://files.pythonhosted.org/packages/b3/df/9c7dfc855681c7866fc949f3db5e294783e4818f5a830164eb4cb36abbe1/opentelemetry_instrumentation_alephalpha-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_alephalpha-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-anthropic==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-anthropic==0.47.3 from https://files.pythonhosted.org/packages/1b/cd/536796af5f9baac1ba53ebbaccd0afa315b928ef4d4dc89601e7efcf14af/opentelemetry_instrumentation_anthropic-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_anthropic-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-bedrock==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-bedrock==0.47.3 from https://files.pythonhosted.org/packages/08/af/8167c31b922c4c23f7d162b4b824c548c79dc12f92f70c166de027554bd8/opentelemetry_instrumentation_bedrock-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_bedrock-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-chromadb==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-chromadb==0.47.3 from https://files.pythonhosted.org/packages/24/a1/b05990a7c332821c13ad14578208d44cde325d6cde7e84edc64d6a745079/opentelemetry_instrumentation_chromadb-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_chromadb-0.47.3-py3-none-any.whl.metadata (1.7 kB)
+Collecting opentelemetry-instrumentation-cohere==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-cohere==0.47.3 from https://files.pythonhosted.org/packages/7a/34/8dfd220a1cdbe5eb857503e192772ec3ec8197801c0c50017474fd41356e/opentelemetry_instrumentation_cohere-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_cohere-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-crewai==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-crewai==0.47.3 from https://files.pythonhosted.org/packages/38/bd/1d8b74abbf1bd3a124e47b4a2ec64e8bb1edf458e5db5cffd222ce413a21/opentelemetry_instrumentation_crewai-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_crewai-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-google-generativeai==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-google-generativeai==0.47.3 from https://files.pythonhosted.org/packages/4e/aa/99db814c48143e257b67b431f08d7e4cd3c072fd8c29c17af7cd99962c52/opentelemetry_instrumentation_google_generativeai-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_google_generativeai-0.47.3-py3-none-any.whl.metadata (2.4 kB)
+Collecting opentelemetry-instrumentation-groq==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-groq==0.47.3 from https://files.pythonhosted.org/packages/2c/21/a1b8fc7bad8f20d540905d5e4c3964a50fdc4eb220be79c5c406a1ef26d5/opentelemetry_instrumentation_groq-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_groq-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-haystack==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-haystack==0.47.3 from https://files.pythonhosted.org/packages/4c/ba/1cf0e693695a83a0d43088f7a0424f27b17c387e50e504232ce444e8ab53/opentelemetry_instrumentation_haystack-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_haystack-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-lancedb==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-lancedb==0.47.3 from https://files.pythonhosted.org/packages/90/7c/eb96a31eb21cfe20d662996de47b93ce95811b20b9613aab1925c7b9fef1/opentelemetry_instrumentation_lancedb-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_lancedb-0.47.3-py3-none-any.whl.metadata (1.6 kB)
+Collecting opentelemetry-instrumentation-langchain==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-langchain==0.47.3 from https://files.pythonhosted.org/packages/fa/66/3d14841d272107e0b5315601932c4ee875e65688b721cb75a8352b0ec6fc/opentelemetry_instrumentation_langchain-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_langchain-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-llamaindex==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-llamaindex==0.47.3 from https://files.pythonhosted.org/packages/68/31/ff64ac99ec095dfb6f8d5aa20e7031ea97b85f7715023226477bf7abcdd8/opentelemetry_instrumentation_llamaindex-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_llamaindex-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-logging>=0.57b0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-logging>=0.57b0 from https://files.pythonhosted.org/packages/a7/d7/40f03745f540630b9e5712dfe5971b9a3f0032df89c5f7bdd167db7ebafc/opentelemetry_instrumentation_logging-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_logging-0.58b0-py3-none-any.whl.metadata (1.8 kB)
+Collecting opentelemetry-instrumentation-marqo==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-marqo==0.47.3 from https://files.pythonhosted.org/packages/9a/48/bbcb216552932727dee7e545dd3ca5bd683fa8b5697e7bbe2a058f651b6a/opentelemetry_instrumentation_marqo-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_marqo-0.47.3-py3-none-any.whl.metadata (1.6 kB)
+Collecting opentelemetry-instrumentation-mcp==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-mcp==0.47.3 from https://files.pythonhosted.org/packages/1f/26/a5b34ec94ae27847a6a33bff6aad8962a91ff807b6838b60384687ea2d09/opentelemetry_instrumentation_mcp-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_mcp-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-milvus==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-milvus==0.47.3 from https://files.pythonhosted.org/packages/b5/9f/cc8f6c2fa71bb0a12593b044c7eae99d08d914746c7275909da48eea2ce0/opentelemetry_instrumentation_milvus-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_milvus-0.47.3-py3-none-any.whl.metadata (1.6 kB)
+Collecting opentelemetry-instrumentation-mistralai==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-mistralai==0.47.3 from https://files.pythonhosted.org/packages/9d/03/4a6c64907741465ad90624f7bd5ebb95e030ca677d0cca073ef0a497bc25/opentelemetry_instrumentation_mistralai-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_mistralai-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-ollama==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-ollama==0.47.3 from https://files.pythonhosted.org/packages/bb/c1/fa6b5d5251e903d6cc2792a5666f387a8aa6aaab0b464d1010d254fba6a2/opentelemetry_instrumentation_ollama-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_ollama-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-openai==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-openai==0.47.3 from https://files.pythonhosted.org/packages/62/10/59ecc2bde0915911ec4a39f2af06e7fc0c8c0356d822d263e975578a087c/opentelemetry_instrumentation_openai-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_openai-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-openai-agents==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-openai-agents==0.47.3 from https://files.pythonhosted.org/packages/46/1d/913b51bf2699d521374fc5f07605657b66d6e6903a34b0d79f293294c10d/opentelemetry_instrumentation_openai_agents-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_openai_agents-0.47.3-py3-none-any.whl.metadata (2.4 kB)
+Collecting opentelemetry-instrumentation-pinecone==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-pinecone==0.47.3 from https://files.pythonhosted.org/packages/cc/1d/1c638dfa1150e0dbccc0ffdf8655eda61e8a61513c3b98ec9f27236d1e06/opentelemetry_instrumentation_pinecone-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_pinecone-0.47.3-py3-none-any.whl.metadata (1.7 kB)
+Collecting opentelemetry-instrumentation-qdrant==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-qdrant==0.47.3 from https://files.pythonhosted.org/packages/6d/87/af01b2826b85548be835f14c3a0ba0c775779e2e13ce405407f0c5ac0dd3/opentelemetry_instrumentation_qdrant-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_qdrant-0.47.3-py3-none-any.whl.metadata (1.6 kB)
+Collecting opentelemetry-instrumentation-redis>=0.50b0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-redis>=0.50b0 from https://files.pythonhosted.org/packages/e3/c0/2a1d5a6950823369f11c19793ed79e882a8b7402de50b890f86541907245/opentelemetry_instrumentation_redis-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_redis-0.58b0-py3-none-any.whl.metadata (2.0 kB)
+Collecting opentelemetry-instrumentation-replicate==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-replicate==0.47.3 from https://files.pythonhosted.org/packages/9f/3e/64b9a9e9a31f82649c1e33994d7bead95b05beb1ea85ba4018af5a055bbc/opentelemetry_instrumentation_replicate-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_replicate-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-requests>=0.50b0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-requests>=0.50b0 from https://files.pythonhosted.org/packages/90/4d/f3476b28ea167d1762134352d01ae9693940a42c78994d9f1b32a4477816/opentelemetry_instrumentation_requests-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_requests-0.58b0-py3-none-any.whl.metadata (2.6 kB)
+Collecting opentelemetry-instrumentation-sagemaker==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-sagemaker==0.47.3 from https://files.pythonhosted.org/packages/39/a9/dbea07c18c81fc395c0d822276682410fe3c072f2b5cbcf56a423789b332/opentelemetry_instrumentation_sagemaker-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_sagemaker-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-sqlalchemy>=0.50b0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-sqlalchemy>=0.50b0 from https://files.pythonhosted.org/packages/42/26/7a86285adf7131801fe297bdb756b00bc3f43f78bc7e18668d88f7308e53/opentelemetry_instrumentation_sqlalchemy-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_sqlalchemy-0.58b0-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-threading>=0.50b0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-threading>=0.50b0 from https://files.pythonhosted.org/packages/a5/54/add1076cb37980e617723a96e29c84006983e8ad6fc589dde7f69ddc57d4/opentelemetry_instrumentation_threading-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_threading-0.58b0-py3-none-any.whl.metadata (2.1 kB)
+Collecting opentelemetry-instrumentation-together==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-together==0.47.3 from https://files.pythonhosted.org/packages/9c/88/c064e9ddf864049b52a4fdb0673c0540ab16d8f2f745ef131af805a9cb78/opentelemetry_instrumentation_together-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_together-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-transformers==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-transformers==0.47.3 from https://files.pythonhosted.org/packages/c6/11/7cf66d0f9a98a8b0dfcdb389b11291755ee3634296faa235b07e14d1be0c/opentelemetry_instrumentation_transformers-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_transformers-0.47.3-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-instrumentation-urllib3>=0.50b0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-urllib3>=0.50b0 from https://files.pythonhosted.org/packages/1a/5f/d960be00ec15a722f2bfff9d226b320cc6c4191b737c98b937541fdecf83/opentelemetry_instrumentation_urllib3-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_urllib3-0.58b0-py3-none-any.whl.metadata (4.2 kB)
+Collecting opentelemetry-instrumentation-vertexai==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-vertexai==0.47.3 from https://files.pythonhosted.org/packages/49/ad/85b7375fc9fd448e6321f94239240ad4bbe143f465ff5efa37c8fca62a21/opentelemetry_instrumentation_vertexai-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_vertexai-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-instrumentation-watsonx==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-watsonx==0.47.3 from https://files.pythonhosted.org/packages/aa/a0/32c6d9dc35de048bafe5858f95e77a9e6a23ca9f5832a1e2cda97eaf4687/opentelemetry_instrumentation_watsonx-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_watsonx-0.47.3-py3-none-any.whl.metadata (2.6 kB)
+Collecting opentelemetry-instrumentation-weaviate==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-weaviate==0.47.3 from https://files.pythonhosted.org/packages/92/78/61c3a4bb0280b99eee283f88208102602894d432a745ff344298ac6e703d/opentelemetry_instrumentation_weaviate-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_weaviate-0.47.3-py3-none-any.whl.metadata (1.7 kB)
+Collecting opentelemetry-instrumentation-writer==0.47.3 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation-writer==0.47.3 from https://files.pythonhosted.org/packages/4b/62/dfe46571e4d71beec6b35ac58152755aeef31094efb5a3a451e8d816e6a5/opentelemetry_instrumentation_writer-0.47.3-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation_writer-0.47.3-py3-none-any.whl.metadata (2.2 kB)
+Collecting opentelemetry-sdk<2.0.0,>=1.28.0 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-sdk<2.0.0,>=1.28.0 from https://files.pythonhosted.org/packages/9f/62/9f4ad6a54126fb00f7ed4bb5034964c6e4f00fcd5a905e115bd22707e20d/opentelemetry_sdk-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_sdk-1.37.0-py3-none-any.whl.metadata (1.5 kB)
+Collecting opentelemetry-semantic-conventions-ai<0.5.0,>=0.4.13 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-semantic-conventions-ai<0.5.0,>=0.4.13 from https://files.pythonhosted.org/packages/35/b5/cf25da2218910f0d6cdf7f876a06bed118c4969eacaf60a887cbaef44f44/opentelemetry_semantic_conventions_ai-0.4.13-py3-none-any.whl.metadata
+  Downloading opentelemetry_semantic_conventions_ai-0.4.13-py3-none-any.whl.metadata (1.1 kB)
+Collecting posthog<4,>3.0.2 (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for posthog<4,>3.0.2 from https://files.pythonhosted.org/packages/54/e2/c158366e621562ef224f132e75c1d1c1fce6b078a19f7d8060451a12d4b9/posthog-3.25.0-py2.py3-none-any.whl.metadata
+  Downloading posthog-3.25.0-py2.py3-none-any.whl.metadata (3.0 kB)
+Requirement already satisfied: tenacity<10.0,>=8.2.3 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (9.1.2)
+Collecting opentelemetry-instrumentation>=0.50b0 (from opentelemetry-instrumentation-alephalpha==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-instrumentation>=0.50b0 from https://files.pythonhosted.org/packages/d4/db/5ff1cd6c5ca1d12ecf1b73be16fbb2a8af2114ee46d4b0e6d4b23f4f4db7/opentelemetry_instrumentation-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_instrumentation-0.58b0-py3-none-any.whl.metadata (7.1 kB)
+Collecting opentelemetry-semantic-conventions>=0.50b0 (from opentelemetry-instrumentation-alephalpha==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-semantic-conventions>=0.50b0 from https://files.pythonhosted.org/packages/07/90/68152b7465f50285d3ce2481b3aec2f82822e3f52e5152eeeaf516bab841/opentelemetry_semantic_conventions-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_semantic_conventions-0.58b0-py3-none-any.whl.metadata (2.4 kB)
+Requirement already satisfied: anthropic>=0.17.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (0.69.0)
+Requirement already satisfied: tokenizers>=0.13.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (0.22.0)
+Collecting inflection<0.6.0,>=0.5.1 (from opentelemetry-instrumentation-llamaindex==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for inflection<0.6.0,>=0.5.1 from https://files.pythonhosted.org/packages/59/91/aa6bde563e0085a02a435aa99b49ef75b0a4b062635e606dab23ce18d720/inflection-0.5.1-py2.py3-none-any.whl.metadata
+  Downloading inflection-0.5.1-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting opentelemetry-exporter-otlp<2.0.0,>=1.34.1 (from opentelemetry-instrumentation-mcp==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-exporter-otlp<2.0.0,>=1.34.1 from https://files.pythonhosted.org/packages/f5/23/7e35e41111e3834d918e414eca41555d585e8860c9149507298bb3b9b061/opentelemetry_exporter_otlp-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_exporter_otlp-1.37.0-py3-none-any.whl.metadata (2.4 kB)
+Collecting mypy-extensions>=0.3.0 (from typing-inspect<1,>=0.4.0->dataclasses-json<0.7.0,>=0.6.7->chainlit)
+  Obtaining dependency information for mypy-extensions>=0.3.0 from https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl.metadata
+  Downloading mypy_extensions-1.1.0-py3-none-any.whl.metadata (1.1 kB)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from aiohttp<4.0.0,>=3.11.11->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (2.6.1)
+Requirement already satisfied: aiosignal>=1.4.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from aiohttp<4.0.0,>=3.11.11->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (1.4.0)
+Requirement already satisfied: frozenlist>=1.1.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from aiohttp<4.0.0,>=3.11.11->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (1.7.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from aiohttp<4.0.0,>=3.11.11->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (6.6.4)
+Requirement already satisfied: propcache>=0.2.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from aiohttp<4.0.0,>=3.11.11->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (0.3.2)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from aiohttp<4.0.0,>=3.11.11->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (1.20.1)
+Collecting wrapt<2,>=1.10 (from deprecated<2.0.0,>=1.2.14->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for wrapt<2,>=1.10 from https://files.pythonhosted.org/packages/83/88/16b7231ba49861b6f75fc309b11012ede4d6b0a9c90969d9e0db8d991aeb/wrapt-1.17.3-cp311-cp311-win_amd64.whl.metadata
+  Downloading wrapt-1.17.3-cp311-cp311-win_amd64.whl.metadata (6.5 kB)
+Requirement already satisfied: MarkupSafe>=2.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from jinja2<4.0.0,>=3.1.5->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (3.0.2)
+Collecting importlib-metadata<8.8.0,>=6.0 (from opentelemetry-api<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for importlib-metadata<8.8.0,>=6.0 from https://files.pythonhosted.org/packages/20/b0/36bd937216ec521246249be3bf9855081de4c5e06a0c9b4219dbeda50373/importlib_metadata-8.7.0-py3-none-any.whl.metadata
+  Downloading importlib_metadata-8.7.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting googleapis-common-protos~=1.57 (from opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for googleapis-common-protos~=1.57 from https://files.pythonhosted.org/packages/86/f1/62a193f0227cf15a920390abe675f386dec35f7ae3ffe6da582d3ade42c7/googleapis_common_protos-1.70.0-py3-none-any.whl.metadata
+  Downloading googleapis_common_protos-1.70.0-py3-none-any.whl.metadata (9.3 kB)
+Collecting grpcio<2.0.0,>=1.63.2 (from opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for grpcio<2.0.0,>=1.63.2 from https://files.pythonhosted.org/packages/8a/40/7b8642d45fff6f83300c24eaac0380a840e5e7fe0e8d80afd31b99d7134e/grpcio-1.75.1-cp311-cp311-win_amd64.whl.metadata
+  Downloading grpcio-1.75.1-cp311-cp311-win_amd64.whl.metadata (3.8 kB)
+Collecting opentelemetry-exporter-otlp-proto-common==1.37.0 (from opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-exporter-otlp-proto-common==1.37.0 from https://files.pythonhosted.org/packages/08/13/b4ef09837409a777f3c0af2a5b4ba9b7af34872bc43609dda0c209e4060d/opentelemetry_exporter_otlp_proto_common-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_exporter_otlp_proto_common-1.37.0-py3-none-any.whl.metadata (1.8 kB)
+Collecting opentelemetry-proto==1.37.0 (from opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-proto==1.37.0 from https://files.pythonhosted.org/packages/c4/25/f89ea66c59bd7687e218361826c969443c4fa15dfe89733f3bf1e2a9e971/opentelemetry_proto-1.37.0-py3-none-any.whl.metadata
+  Downloading opentelemetry_proto-1.37.0-py3-none-any.whl.metadata (2.3 kB)
+Requirement already satisfied: protobuf<7.0,>=5.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from opentelemetry-proto==1.37.0->opentelemetry-exporter-otlp-proto-grpc<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (6.31.1)
+Requirement already satisfied: requests~=2.7 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from opentelemetry-exporter-otlp-proto-http<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (2.32.4)
+Collecting opentelemetry-util-http==0.58b0 (from opentelemetry-instrumentation-requests>=0.50b0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for opentelemetry-util-http==0.58b0 from https://files.pythonhosted.org/packages/a5/a3/0a1430c42c6d34d8372a16c104e7408028f0c30270d8f3eb6cccf2e82934/opentelemetry_util_http-0.58b0-py3-none-any.whl.metadata
+  Downloading opentelemetry_util_http-0.58b0-py3-none-any.whl.metadata (2.6 kB)
+Requirement already satisfied: six>=1.5 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from posthog<4,>3.0.2->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (1.17.0)
+Collecting monotonic>=1.5 (from posthog<4,>3.0.2->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for monotonic>=1.5 from https://files.pythonhosted.org/packages/9a/67/7e8406a29b6c45be7af7740456f7f37025f0506ae2e05fb9009a53946860/monotonic-1.6-py2.py3-none-any.whl.metadata
+  Downloading monotonic-1.6-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting backoff>=1.10.0 (from posthog<4,>3.0.2->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for backoff>=1.10.0 from https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl.metadata
+  Downloading backoff-2.2.1-py3-none-any.whl.metadata (14 kB)
+Requirement already satisfied: python-dateutil>2.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from posthog<4,>3.0.2->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (2.9.0.post0)
+Requirement already satisfied: distro>=1.5.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from posthog<4,>3.0.2->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (1.9.0)
+Collecting wsproto (from simple-websocket>=0.10.0->python-engineio>=4.11.0->python-socketio<6.0.0,>=5.11.0->chainlit)
+  Obtaining dependency information for wsproto from https://files.pythonhosted.org/packages/78/58/e860788190eba3bcce367f74d29c4675466ce8dddfba85f7827588416f01/wsproto-1.2.0-py3-none-any.whl.metadata
+  Downloading wsproto-1.2.0-py3-none-any.whl.metadata (5.6 kB)
+Requirement already satisfied: docstring-parser<1,>=0.15 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from anthropic>=0.17.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (0.17.0)
+Requirement already satisfied: jiter<1,>=0.4.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from anthropic>=0.17.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (0.10.0)
+Collecting zipp>=3.20 (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit)
+  Obtaining dependency information for zipp>=3.20 from https://files.pythonhosted.org/packages/2e/54/647ade08bf0db230bfea292f893923872fd20be6ac6f53b2b936ba839d75/zipp-3.23.0-py3-none-any.whl.metadata
+  Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+Requirement already satisfied: charset_normalizer<4,>=2 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from requests~=2.7->opentelemetry-exporter-otlp-proto-http<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (3.4.2)
+Requirement already satisfied: urllib3<3,>=1.21.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from requests~=2.7->opentelemetry-exporter-otlp-proto-http<2.0.0,>=1.28.0->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (2.5.0)
+Requirement already satisfied: huggingface-hub<1.0,>=0.16.4 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from tokenizers>=0.13.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (0.34.4)
+Requirement already satisfied: filelock in c:\users\m1774\appdata\roaming\python\python311\site-packages (from huggingface-hub<1.0,>=0.16.4->tokenizers>=0.13.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (3.18.0)
+Requirement already satisfied: fsspec>=2023.5.0 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from huggingface-hub<1.0,>=0.16.4->tokenizers>=0.13.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (2025.3.0)
+Requirement already satisfied: pyyaml>=5.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from huggingface-hub<1.0,>=0.16.4->tokenizers>=0.13.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (6.0.2)
+Requirement already satisfied: tqdm>=4.42.1 in c:\users\m1774\appdata\roaming\python\python311\site-packages (from huggingface-hub<1.0,>=0.16.4->tokenizers>=0.13.0->opentelemetry-instrumentation-bedrock==0.47.3->traceloop-sdk>=0.33.12->literalai==0.1.201->chainlit) (4.67.1)
+Downloading chainlit-2.8.2-py3-none-any.whl (9.7 MB)
+   ---------------------------------------- 9.7/9.7 MB 7.1 MB/s eta 0:00:00
+Downloading aiofiles-24.1.0-py3-none-any.whl (15 kB)
+Downloading asyncer-0.0.9-py3-none-any.whl (9.5 kB)
+Downloading dataclasses_json-0.6.7-py3-none-any.whl (28 kB)
+Downloading fastapi-0.116.2-py3-none-any.whl (95 kB)
+   ---------------------------------------- 95.7/95.7 kB 5.3 MB/s eta 0:00:00
+Downloading filetype-1.2.0-py2.py3-none-any.whl (19 kB)
+Downloading Lazify-0.4.0-py2.py3-none-any.whl (3.1 kB)
+Downloading mcp-1.16.0-py3-none-any.whl (167 kB)
+   ---------------------------------------- 167.3/167.3 kB 5.1 MB/s eta 0:00:00
+Downloading pydantic_settings-2.11.0-py3-none-any.whl (48 kB)
+   ---------------------------------------- 48.6/48.6 kB 1.2 MB/s eta 0:00:00
+Downloading PyJWT-2.10.1-py3-none-any.whl (22 kB)
+Downloading python_multipart-0.0.20-py3-none-any.whl (24 kB)
+Downloading python_socketio-5.14.1-py3-none-any.whl (78 kB)
+   ---------------------------------------- 78.5/78.5 kB 4.3 MB/s eta 0:00:00
+Downloading starlette-0.48.0-py3-none-any.whl (73 kB)
+   ---------------------------------------- 73.7/73.7 kB 4.2 MB/s eta 0:00:00
+Downloading tomli-2.2.1-cp311-cp311-win_amd64.whl (108 kB)
+   ---------------------------------------- 108.3/108.3 kB 6.5 MB/s eta 0:00:00
+Downloading uvicorn-0.37.0-py3-none-any.whl (67 kB)
+   ---------------------------------------- 68.0/68.0 kB 3.8 MB/s eta 0:00:00
+Downloading watchfiles-0.24.0-cp311-none-win_amd64.whl (277 kB)
+   ---------------------------------------- 277.5/277.5 kB 5.8 MB/s eta 0:00:00
+Downloading anyio-4.11.0-py3-none-any.whl (109 kB)
+   ---------------------------------------- 109.1/109.1 kB 6.6 MB/s eta 0:00:00
+Downloading bidict-0.23.1-py3-none-any.whl (32 kB)
+Downloading chevron-0.14.0-py3-none-any.whl (11 kB)
+Downloading httpx_sse-0.4.1-py3-none-any.whl (8.1 kB)
+Downloading marshmallow-3.26.1-py3-none-any.whl (50 kB)
+   ---------------------------------------- 50.9/50.9 kB 2.7 MB/s eta 0:00:00
+Downloading python_engineio-4.12.3-py3-none-any.whl (59 kB)
+   ---------------------------------------- 59.6/59.6 kB 3.1 MB/s eta 0:00:00
+Downloading sse_starlette-3.0.2-py3-none-any.whl (11 kB)
+Downloading traceloop_sdk-0.47.3-py3-none-any.whl (46 kB)
+   ---------------------------------------- 47.0/47.0 kB 2.4 MB/s eta 0:00:00
+Downloading opentelemetry_instrumentation_alephalpha-0.47.3-py3-none-any.whl (8.0 kB)
+Downloading opentelemetry_instrumentation_anthropic-0.47.3-py3-none-any.whl (18 kB)
+Downloading opentelemetry_instrumentation_bedrock-0.47.3-py3-none-any.whl (18 kB)
+Downloading opentelemetry_instrumentation_chromadb-0.47.3-py3-none-any.whl (6.3 kB)
+Downloading opentelemetry_instrumentation_cohere-0.47.3-py3-none-any.whl (12 kB)
+Downloading opentelemetry_instrumentation_crewai-0.47.3-py3-none-any.whl (6.2 kB)
+Downloading opentelemetry_instrumentation_google_generativeai-0.47.3-py3-none-any.whl (11 kB)
+Downloading opentelemetry_instrumentation_groq-0.47.3-py3-none-any.whl (10 kB)
+Downloading opentelemetry_instrumentation_haystack-0.47.3-py3-none-any.whl (7.5 kB)
+Downloading opentelemetry_instrumentation_lancedb-0.47.3-py3-none-any.whl (4.8 kB)
+Downloading opentelemetry_instrumentation_langchain-0.47.3-py3-none-any.whl (18 kB)
+Downloading opentelemetry_instrumentation_llamaindex-0.47.3-py3-none-any.whl (21 kB)
+Downloading opentelemetry_instrumentation_marqo-0.47.3-py3-none-any.whl (5.1 kB)
+Downloading opentelemetry_instrumentation_mcp-0.47.3-py3-none-any.whl (10 kB)
+Downloading opentelemetry_instrumentation_milvus-0.47.3-py3-none-any.whl (7.2 kB)
+Downloading opentelemetry_instrumentation_mistralai-0.47.3-py3-none-any.whl (8.9 kB)
+Downloading opentelemetry_instrumentation_ollama-0.47.3-py3-none-any.whl (11 kB)
+Downloading opentelemetry_instrumentation_openai-0.47.3-py3-none-any.whl (35 kB)
+Downloading opentelemetry_instrumentation_openai_agents-0.47.3-py3-none-any.whl (9.0 kB)
+Downloading opentelemetry_instrumentation_pinecone-0.47.3-py3-none-any.whl (6.4 kB)
+Downloading opentelemetry_instrumentation_qdrant-0.47.3-py3-none-any.whl (6.3 kB)
+Downloading opentelemetry_instrumentation_replicate-0.47.3-py3-none-any.whl (8.1 kB)
+Downloading opentelemetry_instrumentation_sagemaker-0.47.3-py3-none-any.whl (9.8 kB)
+Downloading opentelemetry_instrumentation_together-0.47.3-py3-none-any.whl (8.6 kB)
+Downloading opentelemetry_instrumentation_transformers-0.47.3-py3-none-any.whl (8.2 kB)
+Downloading opentelemetry_instrumentation_vertexai-0.47.3-py3-none-any.whl (10 kB)
+Downloading opentelemetry_instrumentation_watsonx-0.47.3-py3-none-any.whl (10 kB)
+Downloading opentelemetry_instrumentation_weaviate-0.47.3-py3-none-any.whl (6.4 kB)
+Downloading opentelemetry_instrumentation_writer-0.47.3-py3-none-any.whl (11 kB)
+Downloading typing_inspect-0.9.0-py3-none-any.whl (8.8 kB)
+Downloading Deprecated-1.2.18-py2.py3-none-any.whl (10.0 kB)
+Downloading mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)
+Downloading opentelemetry_api-1.37.0-py3-none-any.whl (65 kB)
+   ---------------------------------------- 65.7/65.7 kB 3.5 MB/s eta 0:00:00
+Downloading opentelemetry_exporter_otlp_proto_grpc-1.37.0-py3-none-any.whl (19 kB)
+Downloading opentelemetry_exporter_otlp_proto_common-1.37.0-py3-none-any.whl (18 kB)
+Downloading opentelemetry_proto-1.37.0-py3-none-any.whl (72 kB)
+   ---------------------------------------- 72.5/72.5 kB 3.9 MB/s eta 0:00:00
+Downloading opentelemetry_exporter_otlp_proto_http-1.37.0-py3-none-any.whl (19 kB)
+Downloading opentelemetry_instrumentation_logging-0.58b0-py3-none-any.whl (12 kB)
+Downloading opentelemetry_instrumentation-0.58b0-py3-none-any.whl (33 kB)
+Downloading opentelemetry_semantic_conventions-0.58b0-py3-none-any.whl (207 kB)
+   ---------------------------------------- 208.0/208.0 kB 4.3 MB/s eta 0:00:00
+Downloading opentelemetry_instrumentation_redis-0.58b0-py3-none-any.whl (14 kB)
+Downloading opentelemetry_instrumentation_requests-0.58b0-py3-none-any.whl (12 kB)
+Downloading opentelemetry_util_http-0.58b0-py3-none-any.whl (7.7 kB)
+Downloading opentelemetry_instrumentation_sqlalchemy-0.58b0-py3-none-any.whl (14 kB)
+Downloading opentelemetry_instrumentation_threading-0.58b0-py3-none-any.whl (9.3 kB)
+Downloading opentelemetry_instrumentation_urllib3-0.58b0-py3-none-any.whl (13 kB)
+Downloading opentelemetry_sdk-1.37.0-py3-none-any.whl (131 kB)
+   ---------------------------------------- 131.9/131.9 kB 3.9 MB/s eta 0:00:00
+Downloading opentelemetry_semantic_conventions_ai-0.4.13-py3-none-any.whl (6.1 kB)
+Downloading posthog-3.25.0-py2.py3-none-any.whl (89 kB)
+   ---------------------------------------- 89.1/89.1 kB 4.9 MB/s eta 0:00:00
+Downloading simple_websocket-1.1.0-py3-none-any.whl (13 kB)
+Downloading backoff-2.2.1-py3-none-any.whl (15 kB)
+Downloading googleapis_common_protos-1.70.0-py3-none-any.whl (294 kB)
+   ---------------------------------------- 294.5/294.5 kB 8.9 MB/s eta 0:00:00
+Downloading grpcio-1.75.1-cp311-cp311-win_amd64.whl (4.6 MB)
+   ---------------------------------------- 4.6/4.6 MB 8.0 MB/s eta 0:00:00
+Downloading importlib_metadata-8.7.0-py3-none-any.whl (27 kB)
+Downloading inflection-0.5.1-py2.py3-none-any.whl (9.5 kB)
+Downloading monotonic-1.6-py2.py3-none-any.whl (8.2 kB)
+Downloading opentelemetry_exporter_otlp-1.37.0-py3-none-any.whl (7.0 kB)
+Downloading wrapt-1.17.3-cp311-cp311-win_amd64.whl (38 kB)
+Downloading wsproto-1.2.0-py3-none-any.whl (24 kB)
+Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+Building wheels for collected packages: literalai, syncer, cuid
+  Building wheel for literalai (pyproject.toml): started
+  Building wheel for literalai (pyproject.toml): finished with status 'done'
+  Created wheel for literalai: filename=literalai-0.1.201-py3-none-any.whl size=89181 sha256=dce07c20c4734273804c7daa3d3dc05e3e2f801315bac799a59c3fa071d746f9
+  Stored in directory: c:\users\m1774\appdata\local\pip\cache\wheels\24\35\a3\7a1d9d9e46c1a7b4ae8e059098a42177354130a8ca83c1a2b7
+  Building wheel for syncer (pyproject.toml): started
+  Building wheel for syncer (pyproject.toml): finished with status 'done'
+  Created wheel for syncer: filename=syncer-2.0.3-py2.py3-none-any.whl size=3530 sha256=18c3375904f121ff8e45c7ee6235d27a7dbe952dc67ef1768b4732e52792bd77
+  Stored in directory: c:\users\m1774\appdata\local\pip\cache\wheels\fa\a7\d4\9253c7f0256e67e3ff75d4c095c076a3882e319728e94bc6a1
+  Building wheel for cuid (pyproject.toml): started
+  Building wheel for cuid (pyproject.toml): finished with status 'done'
+  Created wheel for cuid: filename=cuid-0.4-py2.py3-none-any.whl size=4823 sha256=129bf84a56eb5d051d0b90859b9f5e6603805f7a6f3bdca0a7ce8ef1723b8d8b
+  Stored in directory: c:\users\m1774\appdata\local\pip\cache\wheels\09\7f\e3\28d5914b5c9537cc9223a8a5ca0686b57e83e9825c16263560
+Successfully built literalai syncer cuid
+Installing collected packages: syncer, monotonic, lazify, filetype, cuid, chevron, zipp, wsproto, wrapt, tomli, python-multipart, pyjwt, opentelemetry-util-http, opentelemetry-semantic-conventions-ai, opentelemetry-proto, mypy-extensions, marshmallow, inflection, httpx-sse, grpcio, googleapis-common-protos, bidict, backoff, anyio, aiofiles, watchfiles, uvicorn, typing-inspect, starlette, sse-starlette, simple-websocket, posthog, opentelemetry-exporter-otlp-proto-common, importlib-metadata, deprecated, asyncer, python-engineio, pydantic-settings, opentelemetry-api, fastapi, dataclasses-json, python-socketio, opentelemetry-semantic-conventions, mcp, opentelemetry-sdk, opentelemetry-instrumentation, opentelemetry-instrumentation-writer, opentelemetry-instrumentation-weaviate, opentelemetry-instrumentation-watsonx, opentelemetry-instrumentation-vertexai, opentelemetry-instrumentation-urllib3, opentelemetry-instrumentation-transformers, opentelemetry-instrumentation-together, opentelemetry-instrumentation-threading, opentelemetry-instrumentation-sqlalchemy, opentelemetry-instrumentation-sagemaker, opentelemetry-instrumentation-requests, opentelemetry-instrumentation-replicate, opentelemetry-instrumentation-redis, opentelemetry-instrumentation-qdrant, opentelemetry-instrumentation-pinecone, opentelemetry-instrumentation-openai-agents, opentelemetry-instrumentation-openai, opentelemetry-instrumentation-ollama, opentelemetry-instrumentation-mistralai, opentelemetry-instrumentation-milvus, opentelemetry-instrumentation-marqo, opentelemetry-instrumentation-logging, opentelemetry-instrumentation-llamaindex, opentelemetry-instrumentation-langchain, opentelemetry-instrumentation-lancedb, opentelemetry-instrumentation-haystack, opentelemetry-instrumentation-groq, opentelemetry-instrumentation-google-generativeai, opentelemetry-instrumentation-crewai, opentelemetry-instrumentation-cohere, opentelemetry-instrumentation-chromadb, opentelemetry-instrumentation-bedrock, opentelemetry-instrumentation-anthropic, opentelemetry-instrumentation-alephalpha, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, opentelemetry-exporter-otlp, opentelemetry-instrumentation-mcp, traceloop-sdk, literalai, chainlit
+  Attempting uninstall: anyio
+    Found existing installation: anyio 3.7.1
+    Uninstalling anyio-3.7.1:
+      Successfully uninstalled anyio-3.7.1
+Successfully installed aiofiles-24.1.0 anyio-4.11.0 asyncer-0.0.9 backoff-2.2.1 bidict-0.23.1 chainlit-2.8.2 chevron-0.14.0 cuid-0.4 dataclasses-json-0.6.7 deprecated-1.2.18 fastapi-0.116.2 filetype-1.2.0 googleapis-common-protos-1.70.0 grpcio-1.75.1 httpx-sse-0.4.1 importlib-metadata-8.7.0 inflection-0.5.1 lazify-0.4.0 literalai-0.1.201 marshmallow-3.26.1 mcp-1.16.0 monotonic-1.6 mypy-extensions-1.1.0 opentelemetry-api-1.37.0 opentelemetry-exporter-otlp-1.37.0 opentelemetry-exporter-otlp-proto-common-1.37.0 opentelemetry-exporter-otlp-proto-grpc-1.37.0 opentelemetry-exporter-otlp-proto-http-1.37.0 opentelemetry-instrumentation-0.58b0 opentelemetry-instrumentation-alephalpha-0.47.3 opentelemetry-instrumentation-anthropic-0.47.3 opentelemetry-instrumentation-bedrock-0.47.3 opentelemetry-instrumentation-chromadb-0.47.3 opentelemetry-instrumentation-cohere-0.47.3 opentelemetry-instrumentation-crewai-0.47.3 opentelemetry-instrumentation-google-generativeai-0.47.3 opentelemetry-instrumentation-groq-0.47.3 opentelemetry-instrumentation-haystack-0.47.3 opentelemetry-instrumentation-lancedb-0.47.3 opentelemetry-instrumentation-langchain-0.47.3 opentelemetry-instrumentation-llamaindex-0.47.3 opentelemetry-instrumentation-logging-0.58b0 opentelemetry-instrumentation-marqo-0.47.3 opentelemetry-instrumentation-mcp-0.47.3 opentelemetry-instrumentation-milvus-0.47.3 opentelemetry-instrumentation-mistralai-0.47.3 opentelemetry-instrumentation-ollama-0.47.3 opentelemetry-instrumentation-openai-0.47.3 opentelemetry-instrumentation-openai-agents-0.47.3 opentelemetry-instrumentation-pinecone-0.47.3 opentelemetry-instrumentation-qdrant-0.47.3 opentelemetry-instrumentation-redis-0.58b0 opentelemetry-instrumentation-replicate-0.47.3 opentelemetry-instrumentation-requests-0.58b0 opentelemetry-instrumentation-sagemaker-0.47.3 opentelemetry-instrumentation-sqlalchemy-0.58b0 opentelemetry-instrumentation-threading-0.58b0 opentelemetry-instrumentation-together-0.47.3 opentelemetry-instrumentation-transformers-0.47.3 opentelemetry-instrumentation-urllib3-0.58b0 opentelemetry-instrumentation-vertexai-0.47.3 opentelemetry-instrumentation-watsonx-0.47.3 opentelemetry-instrumentation-weaviate-0.47.3 opentelemetry-instrumentation-writer-0.47.3 opentelemetry-proto-1.37.0 opentelemetry-sdk-1.37.0 opentelemetry-semantic-conventions-0.58b0 opentelemetry-semantic-conventions-ai-0.4.13 opentelemetry-util-http-0.58b0 posthog-3.25.0 pydantic-settings-2.11.0 pyjwt-2.10.1 python-engineio-4.12.3 python-multipart-0.0.20 python-socketio-5.14.1 simple-websocket-1.1.0 sse-starlette-3.0.2 starlette-0.48.0 syncer-2.0.3 tomli-2.2.1 traceloop-sdk-0.47.3 typing-inspect-0.9.0 uvicorn-0.37.0 watchfiles-0.24.0 wrapt-1.17.3 wsproto-1.2.0 zipp-3.23.0

@@ -1,32 +1,26 @@
 import os
 import json
-import subprocess
-import asyncio
-from typing import Optional, Dict, Any, List, Union
-from datetime import datetime
-import pytz
+import duckdb
+import pandas as pd
+from typing import Dict, Any, List
 from dotenv import load_dotenv
-from openai import OpenAI
-from anthropic import Anthropic
-load_dotenv()
 
+load_dotenv()
 # LangSmith Configuration (Optional)
 # Automatically enabled if LANGCHAIN_TRACING_V2=true in .env
 # No code changes needed - just set environment variables!
-from function import profile_dataframe_json,profile_dataframe_simple
-from function import profile_dataframe_simple_json
-import json, duckdb, pandas as pd
-from typing import Any, Dict
-from openai import OpenAI
-# LangChain imports
-from langchain_experimental.tools import PythonREPLTool
+from function import profile_dataframe_simple
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
-from langchain.agents import initialize_agent, Tool
-from langchain.agents import AgentType
-from langchain.schema import SystemMessage
-import tempfile
-import base64
+from langchain.agents import Tool
+
+# Try to import Gemini (optional)
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    ChatGoogleGenerativeAI = None
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
@@ -38,6 +32,8 @@ class AnalysisState(TypedDict):
     dataset_info: dict
     plan: str  # GPT-5-nano's analysis plan
     code: str  # Claude's generated code
+    code_validation: str  # Gemini's code logic validation
+    code_approved: bool  # Whether code passed Gemini validation
     execution_result: str  # Tool execution result
     validation: str  # GPT-4o-mini's validation
     final_result: dict
@@ -46,14 +42,21 @@ class AnalysisState(TypedDict):
     plan_iterations: List[str]  # Track plan refinements
     user_feedback: str  # User feedback on current plan
     plan_confirmed: bool  # Whether user confirmed the plan
+    # Error handling and retry
+    execution_error: bool  # Whether execution had errors
+    error_message: str  # Detailed error message for retry
+    retry_count: int  # Number of retry attempts
 
 # agent_tools.py
 
 class DataAIAgent:
-    def __init__(self, df: pd.DataFrame, openai_api_key=None, claude_api_key=None):
+    def __init__(self, df: pd.DataFrame, openai_api_key=None, claude_api_key=None, gemini_api_key=None):
         self.df = df
         self.con = duckdb.connect()          
         self.con.register("t", df)
+        
+        # Initialize matplotlib styles once (performance optimization)
+        self._setup_plot_styles()
         
         # Check LangSmith status
         if os.getenv('LANGCHAIN_TRACING_V2') == 'true':
@@ -71,6 +74,7 @@ class DataAIAgent:
         self.claude_llm = ChatAnthropic(
             model="claude-sonnet-4-5",
             temperature=0,
+            max_tokens=2000,  # Limit output to encourage concise code
             api_key=claude_key
         )
         
@@ -84,26 +88,98 @@ class DataAIAgent:
             temperature=0,
             api_key=openai_api_key or os.getenv('OPENAI_API_KEY')
         )
-        # Initialize Python REPL tool
-        self.python_repl = PythonREPLTool()
         
-        # Setup Python environment
-        setup_code = """
-import pandas as pd
-import numpy as np
-import scipy
-import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib
-matplotlib.use('Agg')
-plt.ioff()
-
-df = pd.read_csv('2025-06-25T01-21_export.csv')
-"""
-        self.python_repl.run(setup_code)
-
+        # Initialize Gemini for code validation (optional)
+        self.gemini_llm = None
+        if GEMINI_AVAILABLE:
+            gemini_key = gemini_api_key or os.getenv('GOOGLE_API_KEY')
+            if gemini_key:
+                try:
+                    self.gemini_llm = ChatGoogleGenerativeAI(
+                        model="gemini-2.0-flash-exp",  # Using Gemini 2.0 Flash (2.5 Pro not yet available in API)
+                        temperature=0,
+                        api_key=gemini_key
+                    )
+                    print("✅ Gemini model initialized for code validation")
+                except Exception as e:
+                    print(f"⚠️  Gemini initialization failed: {e}")
+                    print("   Code validation will be skipped.")
+            else:
+                print("⚠️  Gemini API key not found. Code validation will be skipped.")
+        else:
+            print("ℹ️  Gemini not installed. Code validation will be skipped.")
+            print("   (Optional: pip install langchain-google-genai google-generativeai)")
+        
         # Create LangChain tools for LangGraph workflow
         self.tools = self._create_langchain_tools()
+        
+        # Create tool mapping by name for O(1) lookup
+        # Model can directly use tool names from self.tools
+        self.tool_map = {tool.name: tool for tool in self.tools}
+    
+    def _setup_plot_styles(self):
+        """Initialize matplotlib/seaborn styles once for better performance"""
+        try:
+            import matplotlib
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            import platform
+            
+            matplotlib.use('Agg')
+            plt.ioff()
+            
+            # Configure Chinese font support
+            system = platform.system()
+            if system == 'Windows':
+                # Windows: Use Microsoft YaHei or SimHei
+                plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi', 'Arial Unicode MS']
+            elif system == 'Darwin':  # macOS
+                plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'Arial Unicode MS']
+            else:  # Linux
+                plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'WenQuanYi Zen Hei', 'Noto Sans CJK SC', 'Droid Sans Fallback']
+            
+            # Fix minus sign display issue in Chinese fonts
+            plt.rcParams['axes.unicode_minus'] = False
+            
+            # Seaborn theme: clean white grid style
+            sns.set_theme(
+                style="whitegrid",
+                context="talk",
+                font_scale=1.05,
+                rc={
+                    "figure.dpi": 120,
+                    "savefig.dpi": 160,
+                    "figure.figsize": (7.5, 4.5),
+                    "axes.spines.top": False,
+                    "axes.spines.right": False,
+                    "axes.titleweight": "semibold",
+                    "axes.labelweight": "regular",
+                    "axes.grid": True,
+                    "grid.linestyle": "--",
+                    "grid.alpha": 0.25,
+                    "axes.linewidth": 1.0,
+                    "lines.linewidth": 2,
+                    "lines.markersize": 5,
+                    "legend.frameon": False,
+                    "legend.loc": "best",
+                    "xtick.major.pad": 3,
+                    "ytick.major.pad": 3,
+                }
+            )
+            sns.set_palette("colorblind")
+            
+            # Fallback matplotlib style
+            matplotlib.rcParams.update({
+                "figure.autolayout": True,
+                "axes.titlesize": "large",
+                "axes.labelsize": "medium",
+                "xtick.labelsize": "small",
+                "ytick.labelsize": "small",
+            })
+            
+            print("✅ 中文字体配置成功")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not set up plot styles: {e}")
 
     def _create_langchain_tools(self):
         """Create LangChain Tool objects for the agent"""
@@ -121,52 +197,106 @@ df = pd.read_csv('2025-06-25T01-21_export.csv')
                 return f"SQL Error: {str(e)}"
         
         def run_python_tool(code: str) -> str:
-            """Execute Python code for data analysis"""
+            """Unified Python execution tool: handles both data analysis and visualization"""
             import io
             import sys
+            import glob
+            import time
+            import os
             from contextlib import redirect_stdout, redirect_stderr
             
             try:
-                # Create safe builtins whitelist
-                safe_builtins = {
-                    'len': len, 'range': range, 'sum': sum, 'min': min, 'max': max,
-                    'list': list, 'dict': dict, 'tuple': tuple, 'set': set,
-                    'zip': zip, 'enumerate': enumerate, 'sorted': sorted,
-                    'abs': abs, 'round': round, 'int': int, 'float': float, 'str': str,
-                    'bool': bool, 'any': any, 'all': all, 'map': map, 'filter': filter,
-                    'isinstance': isinstance, 'type': type, 'print': print,
-                    'True': True, 'False': False, 'None': None
-                }
+                # Get project root directory
+                project_root = os.path.dirname(os.path.abspath(__file__))
                 
-                # Prepare execution environment
+                # Prepare execution environment with matplotlib
                 import numpy as np
                 import scipy
-                safe_globals = {"__builtins__": safe_builtins}
-                safe_locals = {
-                    "pd": pd,
-                    "df": self.df.copy(),
-                    "np": np,
-                    "scipy": scipy,
-                    "json": json
+                import sklearn
+                import matplotlib
+                import platform
+                matplotlib.use('Agg')
+                import matplotlib.pyplot as plt
+                import seaborn as sns
+                plt.ioff()
+                
+                # Configure Chinese font support for this execution
+                system = platform.system()
+                if system == 'Windows':
+                    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi', 'Arial Unicode MS']
+                elif system == 'Darwin':  # macOS
+                    plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'Arial Unicode MS']
+                else:  # Linux
+                    plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'WenQuanYi Zen Hei', 'Noto Sans CJK SC', 'Droid Sans Fallback']
+                plt.rcParams['axes.unicode_minus'] = False
+                
+                # Change working directory to project root for saving plots
+                original_cwd = os.getcwd()
+                os.chdir(project_root)
+                
+                # Use restricted globals but allow necessary imports
+                safe_globals = {
+                    "__builtins__": {
+                        'len': len, 'range': range, 'sum': sum, 'min': min, 'max': max,
+                        'list': list, 'dict': dict, 'tuple': tuple, 'set': set,
+                        'zip': zip, 'enumerate': enumerate, 'sorted': sorted,
+                        'abs': abs, 'round': round, 'int': int, 'float': float, 'str': str,
+                        'bool': bool, 'any': any, 'all': all, 'map': map, 'filter': filter,
+                        'isinstance': isinstance, 'type': type, 'print': print,
+                        'True': True, 'False': False, 'None': None,
+                        '__import__': __import__,  # Allow imports
+                        'ImportError': ImportError,
+                        'Exception': Exception,
+                    }
                 }
                 
-                # Capture stdout and stderr
+                safe_locals = {
+                    "pd": pd,
+                    "df": self.df.copy(),  # Copy needed to prevent modifications to original
+                    "np": np,
+                    "scipy": scipy,
+                    "sklearn": sklearn,
+                    "plt": plt,
+                    "sns": sns,
+                    "matplotlib": matplotlib,
+                    "json": json,
+                    "os": os
+                }
+                
+                # Get existing png files in project root before execution
+                existing_files = set(glob.glob(os.path.join(project_root, "*.png")))
+                
+                # Capture stdout and stderr (styles already set in __init__)
                 stdout_capture = io.StringIO()
                 stderr_capture = io.StringIO()
                 
-                with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                    exec(code, safe_globals, safe_locals)
+                try:
+                    with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+                        exec(code, safe_globals, safe_locals)
+                    
+                    # Close all matplotlib figures to free resources
+                    plt.close('all')
+                finally:
+                    # Restore original working directory
+                    os.chdir(original_cwd)
                 
                 # Get captured output
                 stdout_text = stdout_capture.getvalue()
                 stderr_text = stderr_capture.getvalue()
                 
-                # Get result variable
+                # Check for newly generated files in project root
+                current_files = set(glob.glob(os.path.join(project_root, "*.png")))
+                new_files = current_files - existing_files
+                # Extract just the filenames
+                new_files = {os.path.basename(f) for f in new_files}
+                
+                # Get result variable (for calculations)
                 result = safe_locals.get("result", None)
                 
-                # Format response
+                # Format response - smart formatting based on what was produced
                 response_parts = []
                 
+                # Add calculation results if any
                 if stdout_text:
                     response_parts.append(f"Output:\n{stdout_text.strip()}")
                 
@@ -175,136 +305,15 @@ df = pd.read_csv('2025-06-25T01-21_export.csv')
                         response_parts.append(f"\nDataFrame result (shape {result.shape}):\n{result.head(10).to_string()}")
                     else:
                         response_parts.append(f"\nResult: {str(result)}")
-                elif not stdout_text:
-                    response_parts.append("Code executed successfully (no output or result variable)")
                 
-                if stderr_text:
-                    response_parts.append(f"\nWarnings:\n{stderr_text.strip()}")
-                
-                return "\n".join(response_parts) if response_parts else "Code executed successfully"
-                    
-            except Exception as e:
-                import traceback
-                return f"Python Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-        
-        def run_python_plot_tool(code: str) -> str:
-            """Execute Python code for creating plots"""
-            import io
-            import sys
-            import glob
-            import time
-            from contextlib import redirect_stdout, redirect_stderr
-            
-            try:
-                # Create safe builtins whitelist
-                safe_builtins = {
-                    'len': len, 'range': range, 'sum': sum, 'min': min, 'max': max,
-                    'list': list, 'dict': dict, 'tuple': tuple, 'set': set,
-                    'zip': zip, 'enumerate': enumerate, 'sorted': sorted,
-                    'abs': abs, 'round': round, 'int': int, 'float': float, 'str': str,
-                    'bool': bool, 'any': any, 'all': all, 'map': map, 'filter': filter,
-                    'isinstance': isinstance, 'type': type, 'print': print,
-                    'True': True, 'False': False, 'None': None
-                }
-                
-                # Prepare execution environment with matplotlib
-                import numpy as np
-                import scipy
-                import matplotlib
-                matplotlib.use('Agg')
-                import matplotlib.pyplot as plt
-                import seaborn as sns
-                plt.ioff()
-                
-                safe_globals = {"__builtins__": safe_builtins}
-                safe_locals = {
-                    "pd": pd,
-                    "df": self.df.copy(),
-                    "np": np,
-                    "scipy": scipy,
-                    "plt": plt,
-                    "sns": sns,
-                    "matplotlib": matplotlib,
-                    "json": json
-                }
-                
-                # Generate unique filename with timestamp
-                timestamp = int(time.time() * 1000)
-                unique_filename = f"plot_{timestamp}.png"
-                
-                # Get existing png files before execution
-                existing_files = set(glob.glob("*.png"))
-                
-                # Set up beautiful plot styles before execution
-                try:
-                    # 1) Seaborn theme: clean white grid style
-                    sns.set_theme(
-                        style="whitegrid",      # whitegrid / white / darkgrid
-                        context="talk",         # paper / notebook / talk / poster
-                        font_scale=1.05,
-                        rc={
-                            "figure.dpi": 120,
-                            "savefig.dpi": 160,
-                            "figure.figsize": (7.5, 4.5),
-                            "axes.spines.top": False,
-                            "axes.spines.right": False,
-                            "axes.titleweight": "semibold",
-                            "axes.labelweight": "regular",
-                            "axes.grid": True,
-                            "grid.linestyle": "--",
-                            "grid.alpha": 0.25,
-                            "axes.linewidth": 1.0,
-                            "lines.linewidth": 2,
-                            "lines.markersize": 5,
-                            "legend.frameon": False,
-                            "legend.loc": "best",
-                            "xtick.major.pad": 3,
-                            "ytick.major.pad": 3,
-                            "font.family": "DejaVu Sans",  # Or "Arial" / "Source Sans 3"
-                        }
-                    )
-                    sns.set_palette("colorblind")  # Beautiful and readable colors
-                except Exception:
-                    pass
-                
-                # 2) Fallback matplotlib style (if not using seaborn)
-                matplotlib.rcParams.update({
-                    "figure.autolayout": True,     # Auto layout, less overlap
-                    "axes.titlesize": "large",
-                    "axes.labelsize": "medium",
-                    "xtick.labelsize": "small",
-                    "ytick.labelsize": "small",
-                })
-                
-                # Capture stdout and stderr
-                stdout_capture = io.StringIO()
-                stderr_capture = io.StringIO()
-                
-                with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                    exec(code, safe_globals, safe_locals)
-                
-                # Close all matplotlib figures to free resources
-                plt.close('all')
-                
-                # Get captured output
-                stdout_text = stdout_capture.getvalue()
-                stderr_text = stderr_capture.getvalue()
-                
-                # Check for newly generated files
-                current_files = set(glob.glob("*.png"))
-                new_files = current_files - existing_files
-                
-                # Format response
-                response_parts = []
-                
+                # Add plot results if any
                 if new_files:
                     files_list = ", ".join(sorted(new_files))
-                    response_parts.append(f"✅ Plot created successfully: {files_list}")
-                else:
-                    response_parts.append("⚠️ Code executed but no plot file found. Make sure to use plt.savefig('filename.png')")
+                    response_parts.append(f"\n✅ Plot created successfully: {files_list}")
                 
-                if stdout_text:
-                    response_parts.append(f"\nOutput:\n{stdout_text.strip()}")
+                # Handle case where code executed but produced nothing
+                if not response_parts:
+                    response_parts.append("Code executed successfully")
                 
                 if stderr_text:
                     response_parts.append(f"\nWarnings:\n{stderr_text.strip()}")
@@ -313,7 +322,7 @@ df = pd.read_csv('2025-06-25T01-21_export.csv')
                     
             except Exception as e:
                 import traceback
-                return f"Plot Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+                return f"Python Execution Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
         
         # Create LangChain Tool objects
         tools = [
@@ -325,18 +334,20 @@ df = pd.read_csv('2025-06-25T01-21_export.csv')
             Tool(
                 name="run_python", 
                 func=run_python_tool,
-                description="Execute Python code for data analysis using DataFrame 'df'. Assign final results to variable 'result'."
-            ),
-            Tool(
-                name="run_python_plot",
-                func=run_python_plot_tool, 
-                description="Execute Python code to create visualizations and charts. Use plt.savefig('filename.png') to save plots."
+                description="Execute Python code for data analysis and visualization. Can handle calculations, statistics, and plots. Use 'result' variable for calculations, use plt.savefig('filename.png') for plots. Supports pandas, numpy, scipy, sklearn (scikit-learn), matplotlib, and seaborn."
             )
         ]
         
         return tools
 
     # ---- LangGraph DAG Workflow Nodes ----
+    
+    def _get_available_tools_description(self) -> str:
+        """Generate dynamic tool list description for prompts"""
+        tool_desc = "AVAILABLE TOOLS:\n"
+        for tool_name, tool in self.tool_map.items():
+            tool_desc += f'- "{tool_name}": {tool.description}\n'
+        return tool_desc
     
     def interactive_planning(self, state: AnalysisState) -> AnalysisState:
         """Node 0: Interactive planning with memory - allows multi-turn conversation"""
@@ -369,34 +380,47 @@ df = pd.read_csv('2025-06-25T01-21_export.csv')
             for i, plan in enumerate(state['plan_iterations'][-3:], 1):  # Keep last 3 iterations
                 plan_context += f"Iteration {i}: {plan}\n"
         
-        planning_prompt = f"""You are a data analyst. Create an execution plan for the user's request.
+        planning_prompt = f"""You are a data analyst assistant having a conversation with the user.
 
 Question: {state['question']}
-
 Dataset Info: {json.dumps(state['dataset_info'], ensure_ascii=False)}
-
 {conversation_context}
-
 User Feedback: {state.get('user_feedback', 'None - First interaction')}
 
-PRINCIPLE: 
-- User asks for X → plan to deliver EXACTLY X
-- Be concise and precise
-- Example: "画一个直方图" → Plan: create histogram of [specific column]
+YOUR TASK:
+1. If the user's request is CLEAR and SPECIFIC (e.g., "画一个直方图", "计算平均价格"):
+   → Respond with a JSON plan (ready to execute)
 
-Respond in JSON:
+2. If the user's request is VAGUE or EXPLORATORY (e.g., "这个数据怎么分析?", "有什么发现?"):
+   → Respond with natural conversation text to clarify requirements
+   → Ask questions, suggest options, or provide insights
+   → Continue dialogue until the goal is clear
+
+RESPONSE FORMATS:
+
+A) For CLEAR requests - JSON format:
 {{
     "analysis_plan": {{
         "analysis_type": "calculation|visualization|both",
         "columns_needed": ["col1", "col2"],
-        "method": "Brief description of approach",
+        "method": "Step by step approach with chain of thought",
         "expected_output": "What will be delivered"
     }},
     "message_to_user": "I will [exact action]. Ready to execute?",
-    "optional_suggestions": "Optional: 1 brief improvement idea (if truly valuable)"
+    "optional_suggestions": "Optional: Brief improvement ideas"
 }}
 
-Keep all fields CONCISE. User will confirm before execution."""
+B) For VAGUE requests or ongoing conversation - Plain text:
+Just respond naturally in conversational text. Examples:
+- "我看了一下数据，有几个分析方向：1) 价格分布分析 2) 时间趋势分析 3) 分类对比。你想看哪个？"
+- "要分析价格的话，我可以帮你：计算统计指标、画分布图、或者做分组对比。你更关心哪方面？"
+- "这个数据集包含X列Y行，主要字段有...，你想探索什么问题？"
+
+IMPORTANT:
+- Keep conversation natural and helpful
+- Only produce JSON when you have a CONCRETE, EXECUTABLE plan
+- Method should show step-by-step reasoning
+- Be concise but informative"""
 
         try:
             response = self.gpt_llm1.invoke(planning_prompt)
@@ -410,30 +434,54 @@ Keep all fields CONCISE. User will confirm before execution."""
             
             # Try to parse the JSON response
             try:
-                parsed_result = json.loads(planning_result)
+                # Try to extract JSON from markdown code blocks if present
+                json_text = planning_result.strip()
+                if json_text.startswith("```"):
+                    lines = json_text.split('\n')
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    json_text = '\n'.join(lines).strip()
                 
-                # Extract plan and status
-                plan_str = json.dumps(parsed_result.get('analysis_plan', {}), ensure_ascii=False)
-                state['plan_iterations'].append(plan_str)
-                state['plan'] = plan_str
+                parsed_result = json.loads(json_text)
                 
-                # Store the full response for display
-                state['planning_response'] = parsed_result
-                
-                # Always wait for user confirmation
-                print(f"📋 {parsed_result.get('message_to_user', '')}")
-                
-                # Show suggestions if available
-                if parsed_result.get('optional_suggestions'):
-                    print(f"💡 Suggestions: {parsed_result.get('optional_suggestions')}")
-                
-                # Never auto-confirm, always wait for user
-                state['plan_confirmed'] = False
+                # Check if it's a valid plan JSON (has analysis_plan key)
+                if 'analysis_plan' in parsed_result:
+                    # This is a concrete plan - extract it
+                    plan_str = json.dumps(parsed_result.get('analysis_plan', {}), ensure_ascii=False)
+                    state['plan_iterations'].append(plan_str)
+                    state['plan'] = plan_str
+                    
+                    # Store the full response for display
+                    state['planning_response'] = parsed_result
+                    
+                    # Always wait for user confirmation
+                    print(f"📋 {parsed_result.get('message_to_user', '')}")
+                    
+                    # Show suggestions if available
+                    if parsed_result.get('optional_suggestions'):
+                        print(f"💡 Suggestions: {parsed_result.get('optional_suggestions')}")
+                    
+                    # Mark that we have a plan but need confirmation
+                    state['plan_confirmed'] = False
+                else:
+                    # JSON but not a plan - treat as conversation
+                    raise json.JSONDecodeError("Not a plan JSON", json_text, 0)
                 
             except json.JSONDecodeError:
-                # Fallback if JSON parsing fails
-                state['plan'] = planning_result
-                state['plan_iterations'].append(planning_result)
+                # This is conversational text, not a plan
+                print(f"💬 Assistant: {planning_result}")
+                
+                # Store as conversation but not as a plan
+                state['plan'] = ""  # No concrete plan yet
+                state['plan_confirmed'] = False
+                
+                # Mark that we're still in conversation mode
+                state['planning_response'] = {
+                    'conversation_mode': True,
+                    'message': planning_result
+                }
             
             return state
             
@@ -444,7 +492,12 @@ Keep all fields CONCISE. User will confirm before execution."""
     
     def generate_code(self, state: AnalysisState) -> AnalysisState:
         """Node 2: Claude generates code based on plan"""
-        print("💻 Claude: Generating code based on plan...")
+        retry_count = state.get('retry_count', 0)
+        
+        if retry_count > 0:
+            print(f"🔄 Claude: Regenerating code (Retry {retry_count}/3)...")
+        else:
+            print("💻 Claude: Generating code based on plan...")
         
         # Parse the plan to determine analysis type
         plan_str = state.get('plan', '')
@@ -458,46 +511,102 @@ Keep all fields CONCISE. User will confirm before execution."""
         except:
             print("   Could not parse plan JSON, using default type: calculation")
         
-        code_prompt = f"""You are a Python code generator. Based on this analysis plan, generate executable Python code.
+        # Choose prompt based on whether this is a retry
+        if state.get('execution_error', False) and state.get('error_message'):
+            # Retry scenario: Use dedicated error-fixing prompt
+            print("   Using error-fixing prompt...")
+            code_prompt = f"""You are a Python code debugger. The previous code execution failed. Your task is to analyze the error and generate CORRECTED code.
+
+Question: {state['question']}
+Dataset Info: {json.dumps(state['dataset_info'], ensure_ascii=False)}
+
+PREVIOUS CODE (FAILED):
+{state.get('code', 'N/A')}
+
+ERROR MESSAGE:
+{state['error_message']}
+
+AVAILABLE ENVIRONMENT:
+- Libraries: pandas (pd), numpy (np), scipy, sklearn (scikit-learn), matplotlib.pyplot (plt), seaborn (sns), json
+- DataFrame 'df' is already loaded with the data
+- Built-in functions: len, range, sum, min, max, list, dict, zip, enumerate, sorted, abs, round, etc.
+- The unified Python tool can handle both calculations AND plots in the same code block
+
+CRITICAL INSTRUCTIONS:
+1. Analyze the error message carefully
+2. Fix ONLY the specific error - do not change working parts
+3. Pay attention to:
+   - Exact column names from dataset (case-sensitive)
+   - Data types and operations compatibility
+   - Missing values or empty data handling
+
+{self._get_available_tools_description()}
+
+OUTPUT FORMAT - Start with "PYTHON:" marker:
+PYTHON:
+# Your corrected code here
+# Can include both calculations and plots
+# For calculations: use print() or assign to 'result'
+# For plots: use plt.savefig('filename.png')
+
+Example:
+PYTHON:
+result = df['correct_column'].describe()
+print(result)
+
+Generate the CORRECTED code now (start with PYTHON:):"""
+
+        else:
+            # Initial generation: Use simple text-based format
+            print("   Using initial code generation prompt...")
+            code_prompt = f"""You are a Python code generator. Based on this analysis plan, generate executable Python code.
 
 Analysis Plan: {state['plan']}
 Question: {state['question']}
 Dataset Info: {json.dumps(state['dataset_info'], ensure_ascii=False)}
 
 AVAILABLE ENVIRONMENT:
-- Libraries: pandas (pd), numpy (np), scipy, matplotlib.pyplot (plt), seaborn (sns), json
+- Libraries: pandas (pd), numpy (np), scipy, sklearn (scikit-learn), matplotlib.pyplot (plt), seaborn (sns), json, os
 - DataFrame 'df' is already loaded with the data
 - Built-in functions: len, range, sum, min, max, list, dict, zip, enumerate, sorted, abs, round, etc.
-- Note: plt and sns are only available in PLOT sections
+- The unified Python tool can handle both calculations AND plots in the same code block
 
 IMPORTANT INSTRUCTIONS:
-1. Generate ONLY raw Python code - NO markdown formatting, NO code blocks (```), NO explanations
-2. For calculations: assign final result to variable 'result' and/or use print()
-3. For Chinese column names, use: df["列名"] with double quotes
-4. For plots: use plt.savefig('filename.png') to save the plot
-5. Do NOT import libraries (they are already available)
+1. For calculations: assign final result to variable 'result' and/or use print()
+2. For Chinese column names, use: df["列名"] with double quotes
+3. For plots: use plt.savefig('filename.png') to save the plot
+4. Do NOT import libraries (they are already available)
+5. Pay careful attention to column names - they must EXACTLY match the dataset
+6. **KEEP CODE CONCISE** - Generate simple, direct code without comments or steps
 
-Example format (calculation):
-PYTHON:
-result = df.groupby("类型")["数量"].sum()
+
+{self._get_available_tools_description()}
+
+OUTPUT FORMAT :
+# Your code here - can include both calculations and plots
+# For calculations: use print() or assign to 'result'
+# For plots: use plt.savefig('filename.png')
+
+Example output (combined calculation and plot):
+# Analysis
+result = df.groupby('category')['value'].agg(['mean', 'count'])
 print(result)
-
-Example format (visualization):
-PLOT:
+# Visualization
 plt.figure(figsize=(10, 6))
-df["销量"].plot(kind="bar")
-plt.title("Sales Analysis")
-plt.xlabel("Category")
-plt.ylabel("Amount")
-plt.tight_layout()
-plt.savefig('sales_chart.png')
+df.boxplot(column='value', by='category')
+plt.savefig('boxplot.png')
 
-
-Now generate ONLY the raw Python code (no markdown, no explanations):"""
+Now generate CONCISE code:"""
 
         try:
             print("   Calling Claude API...")
-            response = self.claude_llm.invoke(code_prompt)
+            # Simple system message emphasizing conciseness
+            from langchain.schema import SystemMessage, HumanMessage
+            messages = [
+                SystemMessage(content="You are a Python code generator. Generate CONCISE, executable Python code starting with 'PYTHON:' marker. The unified tool handles both calculations and plots in the same block. Keep code short and direct - avoid verbose comments and unnecessary steps."),
+                HumanMessage(content=code_prompt)
+            ]
+            response = self.claude_llm.invoke(messages)
             code_response = response.content
             
             if not code_response or len(code_response.strip()) == 0:
@@ -517,13 +626,15 @@ Now generate ONLY the raw Python code (no markdown, no explanations):"""
                     lines = lines[:-1]
                 code_response = '\n'.join(lines)
             
-            # If still wrapped in backticks, try another approach
+            # Remove any remaining backticks
             code_response = code_response.replace("```python", "").replace("```", "").strip()
             
             print(f"🔧 Code generated successfully ({len(code_response)} chars)")
-            print(f"   Preview: {code_response[:150]}...")
+            print(f"   Preview: {code_response[:100]}...")
             
+            # Store the text-based code directly
             state["code"] = code_response
+            
             return state
             
         except Exception as e:
@@ -535,70 +646,203 @@ Now generate ONLY the raw Python code (no markdown, no explanations):"""
             state["code"] = f"Code generation error: {str(e)}"
             return state
     
+    def validate_code_logic(self, state: AnalysisState) -> AnalysisState:
+        """Node 2.5: Gemini validates code logic before execution"""
+        
+        # Skip validation if Gemini is not available
+        if not self.gemini_llm:
+            print("⚠️  Gemini not available, skipping code validation...")
+            state["code_validation"] = "Skipped: Gemini API key not configured"
+            state["code_approved"] = True
+            return state
+        
+        print("🔍 Gemini: Validating code logic and feasibility...")
+        
+        validation_prompt = f"""You are a Python code reviewer specializing in logic validation. Your task is to validate if the generated code:
+1. Is logically correct and will execute without errors
+2. Properly addresses the analysis plan requirements
+3. Uses correct column names and data operations
+4. Has proper error handling for edge cases
+
+ANALYSIS PLAN:
+{state['plan']}
+
+GENERATED CODE:
+{state['code']}
+
+Respond in JSON format:
+{{
+    "approved": true/false,
+    "confidence_score": 0-100,
+    "issues_found": [
+        {{"severity": "critical/warning/info", "description": "issue description", "suggestion": "how to fix"}}
+    ],
+    "logic_assessment": "Brief assessment of whether code logic matches plan requirements",
+}}
+
+IMPORTANT:
+- Mark as approved:false only if there are CRITICAL issues that will cause execution failure
+- For minor improvements, mark as approved:true but list them as warnings
+- """
+
+        try:
+            response = self.gemini_llm.invoke(validation_prompt)
+            validation_result = response.content
+            
+            print(f"📋 Validation result received ({len(validation_result)} chars)")
+            
+            # Try to parse JSON response
+            try:
+                # Try to extract JSON from markdown code blocks if present
+                json_text = validation_result.strip()
+                
+                # Remove markdown code block markers if present
+                if json_text.startswith("```"):
+                    lines = json_text.split('\n')
+                    # Remove first line (```json or similar)
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    # Remove last line (```)
+                    if lines and lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    json_text = '\n'.join(lines).strip()
+                
+                validation_data = json.loads(json_text)
+                
+                approved = validation_data.get('approved', True)
+                confidence = validation_data.get('confidence_score', 0)
+                issues = validation_data.get('issues_found', [])
+                
+                state["code_validation"] = validation_result
+                state["code_approved"] = approved
+                
+                # Display validation summary
+                if approved:
+                    print(f"✅ Code approved (confidence: {confidence}%)")
+                else:
+                    print(f"❌ Code validation failed (confidence: {confidence}%)")
+                
+                # Display critical issues
+                critical_issues = [i for i in issues if i.get('severity') == 'critical']
+                if critical_issues:
+                    print(f"   ⚠️  {len(critical_issues)} critical issue(s) found:")
+                    for issue in critical_issues[:3]:  # Show first 3
+                        print(f"      • {issue.get('description', '')}")
+                        if issue.get('suggestion'):
+                            print(f"        → {issue.get('suggestion', '')}")
+                
+                # Display warnings
+                warnings = [i for i in issues if i.get('severity') == 'warning']
+                if warnings:
+                    print(f"   💡 {len(warnings)} warning(s) found")
+                
+            except json.JSONDecodeError as e:
+                print(f"⚠️  Could not parse Gemini validation response ({str(e)}), defaulting to approved")
+                state["code_validation"] = validation_result
+                state["code_approved"] = True
+            
+            return state
+            
+        except Exception as e:
+            print(f"❌ Gemini validation error: {str(e)}")
+            # On error, default to approved to not block workflow
+            state["code_validation"] = f"Validation error: {str(e)}"
+            state["code_approved"] = True
+            return state
+    
     def execute_code(self, state: AnalysisState) -> AnalysisState:
-        """Node 3: Execute the generated code using tools"""
-        print("⚡ Executing generated code...")
+        """Node 3: Execute the generated code using structured routing"""
+        print("⚡ Executing generated code (structured routing)...")
         
         try:
             code_content = state["code"]
-            print(f"   Code length: {len(code_content)} chars")
-            print(f"   Code preview: {code_content[:100]}...")
             results = []
             
-            # Handle BOTH case: code might contain both PYTHON and PLOT sections
-            if "PYTHON:" in code_content and "PLOT:" in code_content:
-                print("📊 Detected both calculation and visualization tasks...")
+            # Try to parse as structured JSON
+            try:
+                code_json = json.loads(code_content)
+                tasks = code_json.get("tasks", [])
                 
-                # Extract and execute Python code first
-                python_part = code_content.split("PYTHON:")[1]
-                if "PLOT:" in python_part:
-                    python_code = python_part.split("PLOT:")[0].strip()
+                if not tasks:
+                    raise ValueError("No tasks found in JSON")
+                
+                print(f"📋 Found {len(tasks)} task(s) to execute")
+                
+                # Execute each task in order using O(1) routing with tool_map
+                for i, task in enumerate(tasks, 1):
+                    tool_name = task.get("tool")
+                    code = task.get("code", "")
+                    
+                    print(f"\n  → Task {i}/{len(tasks)}: {tool_name}")
+                    print(f"     Code preview: {code[:80]}...")
+                    
+                    # O(1) routing using tool_map
+                    if tool_name in self.tool_map:
+                        tool = self.tool_map[tool_name]
+                        result = tool.func(code)
+                        results.append(f"Task {i} ({tool_name}):\n{result}")
+                    else:
+                        available_tools = ', '.join(self.tool_map.keys())
+                        results.append(f"Task {i}: Unknown tool '{tool_name}'. Available: {available_tools}")
+                        print(f"     ⚠️  Unknown tool: {tool_name}")
+                
+                result = "\n\n".join(results)
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                # Fallback: try string-based parsing with PYTHON: or PLOT: markers
+                print(f"⚠️  JSON parsing failed ({str(e)}), falling back to text marker parsing...")
+                
+                # Handle PYTHON: marker (new unified format)
+                if "PYTHON:" in code_content:
+                    print("🐍 Detected PYTHON: marker...")
+                    code = code_content.split("PYTHON:")[1].strip()
+                    # Remove PLOT: marker if it exists (legacy format)
+                    if "PLOT:" in code:
+                        # Combine both parts since run_python now handles both
+                        python_part = code.split("PLOT:")[0].strip()
+                        plot_part = code.split("PLOT:")[1].strip()
+                        code = python_part + "\n\n" + plot_part
+                    result = self.tool_map["run_python"].func(code)
+                
+                # Handle legacy PLOT: only marker
+                elif "PLOT:" in code_content:
+                    print("📊 Detected legacy PLOT: marker...")
+                    code = code_content.split("PLOT:")[1].strip()
+                    result = self.tool_map["run_python"].func(code)
+                
+                # No markers - execute directly with unified Python tool
                 else:
-                    python_code = python_part.strip()
-                
-                print("  → Executing calculation code...")
-                python_result = self.tools[1].func(python_code)  # run_python_tool
-                results.append(f"Calculation Result:\n{python_result}")
-                
-                # Extract and execute Plot code
-                plot_code = code_content.split("PLOT:")[1].strip()
-                print("  → Executing visualization code...")
-                plot_result = self.tools[2].func(plot_code)  # run_python_plot_tool
-                results.append(f"\nVisualization Result:\n{plot_result}")
-                
-                result = "\n".join(results)
-                
-            elif "PYTHON:" in code_content:
-                print("🔢 Executing calculation code...")
-                code = code_content.split("PYTHON:")[1].strip()
-                result = self.tools[1].func(code)  # run_python_tool
-                
-            elif "PLOT:" in code_content:
-                print("📈 Executing visualization code...")
-                code = code_content.split("PLOT:")[1].strip()
-                result = self.tools[2].func(code)  # run_python_plot_tool
-                
-            else:
-                # No explicit markers, try to detect if it's plotting code
-                if any(keyword in code_content.lower() for keyword in ['plt.', 'plot', 'savefig', 'matplotlib']):
-                    print("📈 Auto-detected visualization code...")
-                    result = self.tools[2].func(code_content)  # run_python_plot_tool
-                else:
-                    print("🔢 Auto-detected calculation code...")
-                    result = self.tools[1].func(code_content)  # run_python_tool
+                    print("⚡ No markers found, executing as Python code...")
+                    result = self.tool_map["run_python"].func(code_content)
             
-            print(f"✅ Execution result: {result[:200]}...")
-            state["execution_result"] = result
+            # Check if execution had errors
+            error_keywords = ["error:", "exception:", "traceback:", "failed"]
+            has_error = any(keyword in result.lower() for keyword in error_keywords)
+            
+            if has_error:
+                print(f"❌ Execution encountered errors!")
+                state["execution_error"] = True
+                state["error_message"] = result
+                state["execution_result"] = result
+            else:
+                print(f"✅ Execution successful")
+                state["execution_error"] = False
+                state["error_message"] = ""
+                state["execution_result"] = result
+            
             return state
             
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            state["execution_result"] = f"Execution error: {str(e)}\n\nDetails:\n{error_detail}"
+            error_msg = f"Execution error: {str(e)}\n\nDetails:\n{error_detail}"
+            state["execution_result"] = error_msg
+            state["execution_error"] = True
+            state["error_message"] = error_msg
             print(f"❌ Execution error: {str(e)}")
             return state
     
-    def validate_and_analyze(self, state: AnalysisState) -> AnalysisState:
+    def explain_results(self, state: AnalysisState) -> AnalysisState:
         """Node 4: GPT-4o-mini validates code and analyzes results"""
         print("🛡�?GPT-4o-mini: Validating and analyzing results...")
         
@@ -629,13 +873,19 @@ Guidelines:
             state["validation"] = validation
             
             # Create final result
+            workflow_desc = "GPT-5-nano(plan) -> Claude(code)"
+            if self.gemini_llm:
+                workflow_desc += " -> Gemini(validate)"
+            workflow_desc += " -> Tools(execute) -> GPT-4o-mini(analyze)"
+            
             state["final_result"] = {
                 "question": state["question"],
                 "plan": state["plan"],
                 "code": state["code"],
+                "code_validation": state.get("code_validation", "N/A"),
                 "execution_result": state["execution_result"],
                 "validation": validation,
-                "workflow": "GPT-5-nano(plan) -> Claude(code) -> Tools(execute) -> GPT-4o-mini(validate)"
+                "workflow": workflow_desc
             }
             
             return state
@@ -676,8 +926,60 @@ Guidelines:
         else:
             return "interactive_plan"
     
+    def should_validate_or_execute(self, state: AnalysisState) -> str:
+        """Conditional edge function after code generation: validate with Gemini or skip to execution"""
+        # If Gemini is available, validate first
+        if self.gemini_llm:
+            return "validate"
+        else:
+            # Skip validation if Gemini not available
+            return "execute"
+    
+    def should_execute_after_validation(self, state: AnalysisState) -> str:
+        """Conditional edge function after Gemini validation"""
+        approved = state.get('code_approved', True)
+        retry_count = state.get('retry_count', 0)
+        max_retries = 3
+        
+        if not approved and retry_count < max_retries:
+            # Code failed validation, regenerate
+            print(f"⚠️  Code validation failed, regenerating... (Attempt {retry_count + 1}/{max_retries})")
+            state['retry_count'] = retry_count + 1
+            # Use validation feedback as error message for regeneration
+            state['error_message'] = f"Code validation failed:\n{state.get('code_validation', '')}"
+            state['execution_error'] = True  # Treat validation failure as execution error for retry
+            return "generate"
+        elif not approved and retry_count >= max_retries:
+            # Max retries reached, proceed anyway with warning
+            print(f"⚠️  Max retries ({max_retries}) reached, executing despite validation concerns...")
+            return "execute"
+        else:
+            # Code approved, proceed to execution
+            return "execute"
+    
+    def should_retry_execution(self, state: AnalysisState) -> str:
+        """Conditional edge function to determine if code execution should be retried"""
+        # Check if there was an execution error
+        has_error = state.get('execution_error', False)
+        retry_count = state.get('retry_count', 0)
+        max_retries = 3
+        
+        if has_error and retry_count < max_retries:
+            # Increment retry count and retry
+            print(f"⚠️  Execution failed, retrying... (Attempt {retry_count + 1}/{max_retries})")
+            state['retry_count'] = retry_count + 1
+            return "generate"  # Go back to code generation with error feedback
+        elif has_error and retry_count >= max_retries:
+            # Max retries reached, proceed to explain with error
+            print(f"❌ Max retries ({max_retries}) reached, proceeding with error explanation...")
+            return "explain"
+        else:
+            # Success, proceed to explanation
+            print("✅ Execution successful, proceeding to explanation...")
+            return "explain"
+    
     def create_langgraph_workflow(self):
-        """Create the LangGraph DAG workflow with interactive planning"""
+        """Create the LangGraph DAG workflow with interactive planning, Gemini validation, and error retry"""
         
         # Create the graph
         workflow = StateGraph(AnalysisState)
@@ -685,8 +987,9 @@ Guidelines:
         # Add nodes
         workflow.add_node("interactive_plan", self.interactive_planning)
         workflow.add_node("generate", self.generate_code)
+        workflow.add_node("validate", self.validate_code_logic)  # New Gemini validation node
         workflow.add_node("execute", self.execute_code)
-        workflow.add_node("validate", self.validate_and_analyze)
+        workflow.add_node("explain", self.explain_results)
         
         # Define the DAG flow with conditional routing
         workflow.set_entry_point("interactive_plan")
@@ -701,10 +1004,38 @@ Guidelines:
             }
         )
         
-        # Continue with normal flow after planning is confirmed
-        workflow.add_edge("generate", "execute")
-        workflow.add_edge("execute", "validate")
-        workflow.add_edge("validate", END)
+        # After code generation, conditionally validate with Gemini or skip to execution
+        workflow.add_conditional_edges(
+            "generate",
+            self.should_validate_or_execute,
+            {
+                "validate": "validate",  # Validate with Gemini if available
+                "execute": "execute"  # Skip validation if Gemini not available
+            }
+        )
+        
+        # After validation, decide whether to regenerate or execute
+        workflow.add_conditional_edges(
+            "validate",
+            self.should_execute_after_validation,
+            {
+                "generate": "generate",  # Regenerate if validation failed
+                "execute": "execute"  # Execute if approved
+            }
+        )
+        
+        # Conditional edge after execution: retry if error, otherwise proceed to explain
+        workflow.add_conditional_edges(
+            "execute",
+            self.should_retry_execution,
+            {
+                "generate": "generate",  # Retry code generation if execution failed
+                "explain": "explain"  # Proceed to explanation if successful or max retries reached
+            }
+        )
+        
+        # End workflow after explanation
+        workflow.add_edge("explain", END)
         
         return workflow.compile()
     
@@ -713,7 +1044,10 @@ Guidelines:
         """Run the complete LangGraph DAG workflow with interactive planning support"""
         
         print("=== Interactive LangGraph DAG Workflow ===")
-        print("🔄 Flow: Interactive Planning -> Claude(code) -> Tools(execute) -> GPT-4o-mini(validate)")
+        if self.gemini_llm:
+            print("🔄 Flow: Interactive Planning -> Claude(code) -> Gemini(validate) -> Tools(execute) -> GPT-4o-mini(explain)")
+        else:
+            print("🔄 Flow: Interactive Planning -> Claude(code) -> Tools(execute) -> GPT-4o-mini(explain)")
         
         # Initialize or update state
         if existing_state:
@@ -731,13 +1065,18 @@ Guidelines:
                 dataset_info=dataset_info or profile_data,
                 plan="",
                 code="",
+                code_validation="",
+                code_approved=True,
                 execution_result="",
                 validation="",
                 final_result={},
                 conversation_history=[],
                 plan_iterations=[],
                 user_feedback=user_feedback or "",
-                plan_confirmed=False
+                plan_confirmed=False,
+                execution_error=False,
+                error_message="",
+                retry_count=0
             )
         
         try:
@@ -776,27 +1115,54 @@ Guidelines:
                 if "error" in state.get("code", "").lower():
                     print(f"⚠️  Code generation had errors: {state['code'][:200]}")
                 
-                # Step 2: Execute code
-                print("\n🔹 Step 2: Executing code...")
+                # Step 2: Validate code logic with Gemini (if available)
+                if self.gemini_llm:
+                    print("\n🔹 Step 2: Validating code logic with Gemini...")
+                    state = self.validate_code_logic(state)
+                    
+                    # If validation failed, regenerate code
+                    retry_count = 0
+                    max_retries = 3
+                    while not state.get('code_approved', True) and retry_count < max_retries:
+                        retry_count += 1
+                        print(f"\n🔄 Regenerating code based on validation feedback (Attempt {retry_count}/{max_retries})...")
+                        state['retry_count'] = retry_count
+                        state['error_message'] = f"Code validation failed:\n{state.get('code_validation', '')}"
+                        state['execution_error'] = True
+                        
+                        state = self.generate_code(state)
+                        state = self.validate_code_logic(state)
+                    
+                    if not state.get('code_approved', True):
+                        print(f"⚠️  Max validation retries reached, proceeding with execution anyway...")
+                
+                # Step 3: Execute code
+                print("\n🔹 Step 3: Executing code...")
                 state = self.execute_code(state)
                 if "error" in state.get("execution_result", "").lower():
                     print(f"⚠️  Execution had errors: {state['execution_result'][:200]}")
                 
-                # Step 3: Validate and analyze
-                print("\n🔹 Step 3: Validating results...")
-                state = self.validate_and_analyze(state)
+                # Step 4: Validate and analyze results
+                print("\n🔹 Step 4: Analyzing results with GPT-4o-mini...")
+                state = self.explain_results(state)
                 
                 # Return both the result and the state for continuation
                 result = state.get("final_result", {})
                 if not result:
                     # Construct result if not already set
+                    workflow_desc = "GPT-5-nano(plan) -> Claude(code)"
+                    if self.gemini_llm:
+                        workflow_desc += " -> Gemini(validate)"
+                    workflow_desc += " -> Tools(execute) -> GPT-4o-mini(analyze)"
+                    
                     result = {
                         "question": state['question'],
                         "plan": state.get('plan', ''),
                         "code": state.get('code', ''),
+                        "code_validation": state.get('code_validation', 'N/A'),
                         "execution_result": state.get('execution_result', ''),
                         "validation": state.get('validation', ''),
-                        "workflow": "GPT-5-nano(plan) -> Claude(code) -> Tools(execute) -> GPT-4o-mini(validate)"
+                        "workflow": workflow_desc
                     }
                 
                 result["conversation_state"] = {
@@ -882,6 +1248,11 @@ def interactive_cli(agent, profile_data):
             
             # Handle plan confirmation
             if user_input.lower() == 'confirm' and conversation_active and current_state:
+                # Check if we have a concrete plan to confirm
+                if not current_state.get('plan') or current_state.get('plan') == "":
+                    print("⚠️  没有具体的执行计划可以确认。请先回答助手的问题，明确你的需求。\n")
+                    continue
+                
                 print("\n✅ Executing the confirmed plan...")
                 print("⏳ Generating code and running analysis...\n")
                 
@@ -971,9 +1342,12 @@ def interactive_cli(agent, profile_data):
                     # Extract the planning response
                     conversation_active = True
                     
-                    # Try to parse and display the plan (simplified)
-                    try:
-                        if result.get('plan'):
+                    # Check if we have a concrete plan or just conversation
+                    has_concrete_plan = result.get('plan') and result.get('plan') != ""
+                    
+                    if has_concrete_plan:
+                        # We have a concrete plan - show it nicely
+                        try:
                             plan_data = json.loads(result['plan'])
                             
                             print("="*70)
@@ -983,35 +1357,29 @@ def interactive_cli(agent, profile_data):
                             if isinstance(plan_data, dict):
                                 analysis_plan = plan_data.get('analysis_plan', plan_data)
                                 
-                                # Show what will be done
-                                if plan_data.get('message_to_user'):
-                                    print(f"\n💬 {plan_data.get('message_to_user')}")
-                                
                                 # Show brief plan details
                                 if analysis_plan:
-                                    print(f"\n📊 Will use columns: {', '.join(analysis_plan.get('columns_needed', []))}")
+                                    print(f"\n📊 Columns: {', '.join(analysis_plan.get('columns_needed', []))}")
                                     print(f"🎯 Type: {analysis_plan.get('analysis_type', 'N/A')}")
-                                
-                                # Show optional suggestions if available
-                                if plan_data.get('optional_suggestions'):
-                                    print(f"\n💡 Suggestion: {plan_data.get('optional_suggestions')}")
-                        else:
-                            # Display raw conversation history
-                            print("="*70)
-                            print("💭 CONVERSATION")
-                            print("="*70)
-                            for msg in conv_state.get('conversation_history', [])[-2:]:
-                                role = "🤖 Assistant" if msg['role'] == 'assistant' else "👤 You"
-                                print(f"\n{role}: {msg['content'][:500]}")
-                    
-                    except json.JSONDecodeError:
-                        print(f"\n📋 Plan: {result.get('plan', 'N/A')[:500]}")
+                                    print(f"🔧 Method: {analysis_plan.get('method', 'N/A')}")
+                        
+                        except json.JSONDecodeError:
+                            pass
+                    else:
+                        # Pure conversation mode - assistant is asking for clarification
+                        # The message was already printed in interactive_planning
+                        pass
                     
                     print("\n" + "="*70)
-                    print("\n💡 You can:")
-                    print("   • Provide feedback to refine the plan")
-                    print("   • Type 'confirm' to execute this plan")
-                    print("   • Type 'new' to start over")
+                    if has_concrete_plan:
+                        print("\n💡 You can:")
+                        print("   • Type 'confirm' to execute this plan")
+                        print("   • Provide feedback to refine the plan")
+                        print("   • Type 'new' to start over")
+                    else:
+                        print("\n💡 Please respond:")
+                        print("   • Answer the question or clarify your needs")
+                        print("   • Type 'new' to start over")
                     print("")
                     
                     # Store state for continuation
