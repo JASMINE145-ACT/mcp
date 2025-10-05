@@ -112,7 +112,7 @@ if page == "📁 上传数据":
                     st.dataframe(info_df, width='stretch')
                 
                 # 确认按钮
-                if st.button("🚀 使用此数据集", type="primary", width=False):
+                if st.button("🚀 使用此数据集", type="primary"):
                     # 保存到 session state
                     st.session_state.df = df
                     
@@ -204,7 +204,7 @@ elif page == "💬 AI 对话":
                 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
                 
                 with col_btn1:
-                    if st.button("✅ 确认执行", type="primary", width=False):
+                    if st.button("✅ 确认执行", type="primary"):
                         with st.spinner("🔄 执行中..."):
                             # 确认并执行
                             st.session_state.conversation_state['plan_confirmed'] = True
@@ -233,7 +233,7 @@ elif page == "💬 AI 对话":
                             st.rerun()
                 
                 with col_btn2:
-                    if st.button("❌ 重新规划", width=False):
+                    if st.button("❌ 重新规划"):
                         st.session_state.waiting_for_confirm = False
                         st.session_state.pending_plan = None
                         st.session_state.conversation_state = None
@@ -267,7 +267,7 @@ elif page == "💬 AI 对话":
                 col_submit, col_clear = st.columns([1, 3])
                 
                 with col_submit:
-                    if st.button("🚀 开始分析", type="primary", width=False):
+                    if st.button("🚀 开始分析", type="primary"):
                         if question.strip():
                             st.session_state.current_question = question.strip()
                             
@@ -305,7 +305,7 @@ elif page == "💬 AI 对话":
                             st.warning("请输入问题")
                 
                 with col_clear:
-                    if st.button("🗑️ 清空历史", width=False):
+                    if st.button("🗑️ 清空历史"):
                         st.session_state.analysis_results = []
                         st.session_state.conversation_state = None
                         st.session_state.waiting_for_confirm = False
@@ -326,7 +326,7 @@ elif page == "💬 AI 对话":
             
             st.write("**示例问题（点击使用）：**")
             for eq in example_questions:
-                if st.button(f"💬 {eq}", key=f"example_{eq}", width=False):
+                if st.button(f"💬 {eq}", key=f"example_{eq}"):
                     st.session_state.current_question = eq
                     st.rerun()
             
@@ -360,7 +360,7 @@ elif page == "📈 查看结果":
         )
         
         # 清空按钮
-        if st.sidebar.button("🗑️ 清空所有结果", width=False):
+        if st.sidebar.button("🗑️ 清空所有结果"):
             st.session_state.analysis_results = []
             st.rerun()
         
