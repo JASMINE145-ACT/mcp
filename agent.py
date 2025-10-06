@@ -536,6 +536,10 @@ AVAILABLE ENVIRONMENT:
 - Built-in functions: len, range, sum, min, max, list, dict, zip, enumerate, sorted, abs, round, etc.
 - The unified Python tool can handle both calculations AND plots in the same code block
 
+MACHINE LEARNING LIBRARY CHOICE:
+- **Prefer sklearn** for classification/regression - it's more robust and handles data types automatically
+- Only use statsmodels if specifically needed for statistical inference (p-values, significance tests)
+
 CRITICAL INSTRUCTIONS:
 1. Analyze the error message carefully
 2. Fix ONLY the specific error - do not change working parts
@@ -574,6 +578,12 @@ AVAILABLE ENVIRONMENT:
 - DataFrame 'df' is already loaded with the data
 - Built-in functions: len, range, sum, min, max, list, dict, zip, enumerate, sorted, abs, round, etc.
 - The unified Python tool can handle both calculations AND plots in the same code block
+
+MACHINE LEARNING LIBRARY CHOICE:
+- **For classification/regression tasks**: Use sklearn (scikit-learn) - it's more robust and handles data types automatically
+  Example: from sklearn.linear_model import LogisticRegression, LinearRegression
+- **Only use statsmodels** if the user explicitly asks for statistical inference (p-values, confidence intervals, significance tests)
+  Example: import statsmodels.api as sm
 
 IMPORTANT INSTRUCTIONS:
 1. For calculations: assign final result to variable 'result' and/or use print()
@@ -820,7 +830,7 @@ IMPORTANT:
                     result = self.tool_map["run_python"].func(code_content)
             
             # Check if execution had errors
-            error_keywords = ["error:", "exception:", "traceback:", "failed"]
+            error_keywords = ["error:", "error ", "exception:", "traceback:", "failed", "valueerror", "typeerror", "keyerror", "attributeerror", "indexerror"]
             has_error = any(keyword in result.lower() for keyword in error_keywords)
             
             if has_error:
