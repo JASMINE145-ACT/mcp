@@ -1,0 +1,19 @@
+﻿{
+  "name": "wanding-quotation-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Wanding quotation MCP server migrated from agent-jk tools. Python performs candidate retrieval; Claude Code performs final selection.",
+  "scripts": {
+    "start": "bun dist/index.js",
+    "smoke": "python python/main.py < smoke-match.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^25.7.0"
+  }
+}

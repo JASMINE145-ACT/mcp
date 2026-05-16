@@ -1,0 +1,19 @@
+﻿{
+  "mcpServers": {
+    "quotation": {
+      "command": "bun",
+      "args": ["run", "start"],
+      "env": {
+        "CCB_PROJECT_ROOT": "<absolute path to this repository>",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "ENABLE_WANDING_VECTOR": "0",
+        "INVENTORY_ENABLE_RESOLVER_VECTOR": "0",
+        "USE_RESOLVER_FALLBACK": "0",
+        "AOL_ACCESS_TOKEN": "",
+        "AOL_DATABASE_ID": "",
+        "AOL_SIGNATURE_SECRET": ""
+      }
+    }
+  }
+}

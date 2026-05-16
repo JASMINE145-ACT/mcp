@@ -1,0 +1,827 @@
+"""
+LLM selector for quotation candidates.
+
+Goals:
+1) Always include business knowledge in prompt.
+2) Keep selector output tiny and stable: only {index, reason}.
+3) Fail fast to rule-based fallback when LLM output is invalid.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+from pathlib import Path
+from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+# cache format: {"path": str, "mtime": float | None, "content": str}
+_business_knowledge_cache: dict[str, Any] = {}
+
+# KnowledgeBackend singleton — injected at startup via set_knowledge_backend()
+_kb_singleton: Any = None
+
+
+def set_knowledge_backend(kb: Any) -> None:
+    """Inject KnowledgeBackend instance (or None to disable). Called at app startup."""
+    global _kb_singleton
+    _kb_singleton = kb
+
+
+def shutdown_knowledge_backend() -> None:
+    """Close pool if present and clear singleton (e.g. app shutdown)."""
+    global _kb_singleton
+    kb = _kb_singleton
+    _kb_singleton = None
+    if kb is None:
+        return
+    close = getattr(kb, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception as e:
+            logger.warning("shutdown_knowledge_backend: %s", e)
+
+
+def _get_knowledge_path() -> Path:
+    """Return configured business knowledge file path."""
+    try:
+        from inventory.config import config
+
+        path_str = getattr(config, "WANDING_BUSINESS_KNOWLEDGE_PATH", None)
+        if path_str:
+            return Path(path_str)
+    except Exception:
+        pass
+    return Path("")
+
+# Module-level singleton for the fast-path OpenAI client (avoids TCP reconnect per call).
+_selector_client: Any = None
+
+
+def _get_selector_client(api_key: str, base_url: str | None) -> Any:
+    """Return (and lazily create) the module-level fast-path OpenAI client."""
+    global _selector_client
+    if _selector_client is None:
+        from openai import OpenAI
+
+        _selector_client = OpenAI(api_key=api_key, base_url=base_url or None)
+    return _selector_client
+
+
+def _reset_selector_client() -> None:
+    """Reset the singleton — used in tests to force re-creation with new credentials."""
+    global _selector_client
+    _selector_client = None
+
+_BUSINESS_KNOWLEDGE = """
+候选选择业务规则（摘要）：
+1. 选择与关键词最贴近的规格、材质、口径、用途。
+2. 口径优先：dn50、50、1-1/2 需对应转换后再比对。
+3. 材质优先：PPR/PVC-U/PE 不能混选，除非关键词未指定且候选强相关。
+4. 来源是 tie-breaker：共同>历史报价>字段匹配，但语义冲突时语义优先。
+5. 若都不匹配可返回 index=0。原因须 >=10 字。
+""".strip()
+
+_SYSTEM_SELECTOR = (
+    "Output ONLY a single JSON object. No prose. No markdown fences. "
+    "Reason must be >=10 Chinese characters (≥10 Chinese characters). "
+    "Empty or missing reason is INVALID. "
+    "DO NOT force-select when no candidate fits; use index=0. "
+    'Schema: {"index": <0..N>, "reason": "<short zh reason 10-20 chars>"}. '
+    "Choose exactly one index."
+)
+
+_SELECTOR_DEFAULT_CANDIDATE_LIMIT = 8
+_SELECTOR_DEFAULT_KNOWLEDGE_CHAR_LIMIT = 1500
+_SELECTOR_DEFAULT_MAX_TOKENS = 3000
+_SELECTOR_MAX_TOKENS_CAP = 3000
+_SELECTOR_REASON_MAX_LEN = 40
+# Fast path caps completion length (small JSON); gpt-5+ requires max_completion_tokens, not max_tokens.
+# Default 500 — was 120; gpt-5-nano can hit length with empty content under tiny caps. Override: LLM_SELECTOR_FAST_OUTPUT_TOKENS.
+_FAST_PATH_OUTPUT_CAP = 500
+
+
+def _is_gpt5_or_reasoning_model(model: str) -> bool:
+    m = (model or "").strip().lower()
+    return m.startswith("gpt-5") or m.startswith(("o1", "o3", "o4"))
+
+
+def _fast_path_limit_kwargs(model: str, output_cap: int = _FAST_PATH_OUTPUT_CAP) -> dict[str, int]:
+    """OpenAI Chat Completions: gpt-5 family rejects max_tokens; use max_completion_tokens."""
+    if _is_gpt5_or_reasoning_model(model):
+        return {"max_completion_tokens": int(output_cap)}
+    return {"max_tokens": int(output_cap)}
+
+
+def _fast_path_sampling_kwargs(model: str) -> dict[str, int]:
+    # gpt-5/o-series fast models may reject non-default temperature; omit to use server default.
+    if _is_gpt5_or_reasoning_model(model):
+        return {}
+    return {"temperature": 0}
+
+
+def _resolve_fast_path_output_cap(config: Any) -> int:
+    """Clamp 32..4000; falls back to _FAST_PATH_OUTPUT_CAP."""
+    raw = _FAST_PATH_OUTPUT_CAP
+    if config is not None:
+        try:
+            raw = int(getattr(config, "LLM_SELECTOR_FAST_OUTPUT_TOKENS", _FAST_PATH_OUTPUT_CAP))
+        except (TypeError, ValueError):
+            raw = _FAST_PATH_OUTPUT_CAP
+    return max(32, min(int(raw), 4000))
+
+
+def _fast_path_retry_output_cap(model: str) -> int:
+    # gpt-5/o-series may spend completion budget on hidden reasoning and return empty content
+    # under tiny caps; allow one bounded retry with a larger budget.
+    if _is_gpt5_or_reasoning_model(model):
+        return 1200
+    return 200
+_SOURCE_PRIORITY = {"共同": 0, "历史报价": 1, "字段匹配": 2}
+
+
+def _load_business_knowledge() -> str:
+    """Load business knowledge with 3-tier fallback: Neon → local file → embedded."""
+    global _business_knowledge_cache
+
+    # --- Tier 1: Neon KnowledgeBackend ---
+    if _kb_singleton is not None:
+        try:
+            content = _kb_singleton.get("wanding_selector")
+            if content and content.strip():
+                logger.info("[KNOWLEDGE_SOURCE] Neon — key: wanding_selector, length: %d", len(content))
+                return content.strip()
+            logger.debug("business knowledge: Neon returned empty/None, falling back to file")
+        except Exception as e:
+            logger.warning("business knowledge: Neon get failed (%s), falling back to file", e)
+            logger.info("[KNOWLEDGE_SOURCE] Neon failed, falling back to file — error: %s", e)
+
+    # --- Tier 2: local file (with mtime cache) ---
+    try:
+        p = _get_knowledge_path()
+        if p and p.exists():
+            try:
+                mtime: Optional[float] = p.stat().st_mtime
+            except OSError:
+                mtime = None
+
+            path_str = str(p)
+            if (
+                _business_knowledge_cache.get("path") == path_str
+                and _business_knowledge_cache.get("mtime") == mtime
+            ):
+                cached = _business_knowledge_cache.get("content", "")
+                if cached:
+                    logger.info("[KNOWLEDGE_SOURCE] Cache — path: %s, length: %d (cached)", path_str, len(cached))
+                    return cached
+
+            content = p.read_text(encoding="utf-8").strip()
+            if content:
+                _business_knowledge_cache = {"path": path_str, "mtime": mtime, "content": content}
+                logger.info("[KNOWLEDGE_SOURCE] File — path: %s, length: %d", path_str, len(content))
+                return content
+
+        # File doesn't exist — bootstrap from embedded
+        if p and p.name:
+            try:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(_BUSINESS_KNOWLEDGE, encoding="utf-8")
+            except Exception as e:
+                logger.debug("bootstrap business knowledge file failed: %s", e)
+    except Exception as e:
+        logger.debug("load business knowledge from file failed, use embedded: %s", e)
+
+    # --- Tier 3: embedded default ---
+    logger.info("[KNOWLEDGE_SOURCE] Embedded default")
+    return _BUSINESS_KNOWLEDGE
+
+
+def invalidate_business_knowledge_cache() -> None:
+    """Clear business knowledge cache, forcing reload on next call."""
+    global _business_knowledge_cache
+    _business_knowledge_cache = {}
+
+
+def _extract_keyword_tokens(keywords: str) -> list[str]:
+    raw = (keywords or "").strip().lower()
+    if not raw:
+        return []
+    tokens = re.findall(r"[a-z0-9\-_/\.]+|[\u4e00-\u9fff]{1,8}", raw)
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in tokens:
+        t = t.strip()
+        if not t:
+            continue
+        if len(t) == 1 and not t.isdigit():
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+    return out
+
+
+def _build_knowledge_hint(keywords: str, knowledge: str, limit: int) -> str:
+    """
+    Mandatory business-knowledge injection with compacting:
+    - Prefer lines hit by keyword tokens.
+    - Fill remaining budget with head lines.
+    """
+    text = (knowledge or "").strip()
+    if not text:
+        return _BUSINESS_KNOWLEDGE[:limit]
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return text[:limit]
+
+    tokens = _extract_keyword_tokens(keywords)
+
+    scored: list[tuple[int, int, str]] = []
+    for idx, ln in enumerate(lines):
+        low = ln.lower()
+        score = 0
+        for t in tokens:
+            if t in low:
+                score += 2
+            if len(t) >= 2 and t in low.replace(" ", ""):
+                score += 1
+        if re.search(r"dn\s*\d+|\d+\s*mm|ppr|pvc|pe", low):
+            score += 1
+        scored.append((score, idx, ln))
+
+    picked: list[str] = []
+    budget = max(200, int(limit or _SELECTOR_DEFAULT_KNOWLEDGE_CHAR_LIMIT))
+
+    # 1) keyword-hit lines first
+    for score, _, ln in sorted(scored, key=lambda x: (-x[0], x[1])):
+        if score <= 0:
+            break
+        if ln in picked:
+            continue
+        if sum(len(x) + 1 for x in picked) + len(ln) > budget:
+            continue
+        picked.append(ln)
+        if len(picked) >= 10:
+            break
+
+    # 2) fill with top lines to keep context
+    if len(picked) < 4:
+        for ln in lines:
+            if ln in picked:
+                continue
+            if sum(len(x) + 1 for x in picked) + len(ln) > budget:
+                break
+            picked.append(ln)
+            if len(picked) >= 8:
+                break
+
+    hint = "\n".join(picked).strip()
+    if not hint:
+        hint = text[:budget]
+    return hint[:budget]
+
+
+def _source_rank(source: str) -> int:
+    return _SOURCE_PRIORITY.get((source or "").strip(), 99)
+
+
+def _build_selector_prompt(
+    keywords: str,
+    llm_candidates: list[dict[str, Any]],
+    knowledge_hint: str,
+) -> str:
+    """Build the prompt string sent to the LLM selector."""
+    lines: list[str] = []
+    for i, c in enumerate(llm_candidates, 1):
+        code = (c.get("code") or "").strip()
+        name = (c.get("matched_name") or "")[:120]
+        price = c.get("unit_price", 0)
+        source = (c.get("source") or "")[:30]
+        lines.append(
+            f"{i}. [{code}] {name} | price={price} | src={source} | src_rank={_source_rank(source)}"
+        )
+    candidates_text = "\n".join(lines)
+    return (
+        f"keywords: {keywords}\n"
+        f"N={len(llm_candidates)}\n"
+        f"candidates:\n{candidates_text}\n\n"
+        f"business_knowledge(mandatory):\n{knowledge_hint}\n\n"
+        f"task: choose exactly one index in 1..{len(llm_candidates)}, or 0 if none matches.\n"
+        'output JSON only: {"index": number, "reason": "short text"}'
+    )
+
+
+def _sort_candidates_by_source(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Stable sort by source priority while preserving original order within same source.
+    return sorted(
+        list(candidates),
+        key=lambda c: _source_rank(str(c.get("source", ""))),
+    )
+
+
+def _extract_content_from_openai_response(resp: Any) -> tuple[str, str, int]:
+    raw_content = resp.choices[0].message.content if resp and resp.choices else None
+    content = (raw_content or "").strip()
+    finish_reason = getattr(resp.choices[0], "finish_reason", None) if resp and resp.choices else None
+    reasoning_content = (
+        getattr(resp.choices[0].message, "reasoning_content", None) if resp and resp.choices else None
+    )
+    reasoning_len = len(reasoning_content or "")
+
+    if not content and reasoning_content:
+        m = re.search(r"\{[\s\S]*\}", reasoning_content, re.DOTALL)
+        if m:
+            candidate = m.group(0).strip()
+            if '"index"' in candidate or '"options"' in candidate:
+                content = candidate
+                logger.info("selector JSON extracted from reasoning_content")
+        if not content:
+            # reasoning_content may be truncated without balanced braces; salvage index/reason by regex.
+            m_idx = re.search(r'"index"\s*:\s*(-?\d+)', reasoning_content)
+            m_reason = re.search(r'"(?:reason|reasoning)"\s*:\s*"([^"]*)"', reasoning_content)
+            if m_idx:
+                content = json.dumps(
+                    {
+                        "index": int(m_idx.group(1)),
+                        "reason": (m_reason.group(1) if m_reason else "").strip(),
+                    },
+                    ensure_ascii=False,
+                )
+                logger.info("selector index/reason salvaged from truncated reasoning_content")
+
+    return content, str(finish_reason or ""), reasoning_len
+
+
+def _fast_path(
+    keywords: str,
+    candidates: list[dict[str, Any]],
+    config: Any,
+    selector_model: str,
+    knowledge_override: str | None,
+) -> Optional[dict[str, Any]]:
+    """
+    Fast selector path for non-thinking models (e.g. gpt-4o-mini).
+    Uses response_format=json_object and a bounded completion cap (default 500).
+    Falls back to _rule_based_fallback on any error.
+    """
+    if not candidates:
+        return None
+
+    candidate_limit = int(
+        getattr(config, "LLM_SELECTOR_CANDIDATE_LIMIT", _SELECTOR_DEFAULT_CANDIDATE_LIMIT)
+        if config is not None
+        else _SELECTOR_DEFAULT_CANDIDATE_LIMIT
+    )
+    candidate_limit = max(1, min(candidate_limit, 20))
+
+    knowledge_limit = int(
+        getattr(config, "LLM_SELECTOR_KNOWLEDGE_CHAR_LIMIT", _SELECTOR_DEFAULT_KNOWLEDGE_CHAR_LIMIT)
+        if config is not None
+        else _SELECTOR_DEFAULT_KNOWLEDGE_CHAR_LIMIT
+    )
+    knowledge_limit = max(200, min(knowledge_limit, 4000))
+    _full_knowledge: bool = (
+        os.environ.get("INVENTORY_LLM_SELECTOR_FULL_KNOWLEDGE", "1").strip().lower()
+        in ("1", "true", "yes")
+    )
+
+    sorted_candidates = _apply_candidate_pre_filter(keywords, candidates)
+    llm_candidates = sorted_candidates[:candidate_limit]
+
+    knowledge = (
+        knowledge_override.strip()
+        if knowledge_override and knowledge_override.strip()
+        else _load_business_knowledge()
+    )
+    knowledge_hint = (
+        knowledge if _full_knowledge else _build_knowledge_hint(keywords, knowledge, knowledge_limit)
+    )
+
+    prompt = _build_selector_prompt(keywords, llm_candidates, knowledge_hint)
+
+    api_key = getattr(config, "LLM_SELECTOR_API_KEY", "") if config is not None else ""
+    base_url_raw = getattr(config, "LLM_SELECTOR_BASE_URL", "") if config is not None else ""
+    base_url = base_url_raw.strip() or None
+    timeout = int(getattr(config, "LLM_SELECTOR_TIMEOUT", 15)) if config is not None else 15
+    fast_out_cap = _resolve_fast_path_output_cap(config)
+
+    try:
+        client = _get_selector_client(api_key, base_url)
+
+        logger.info(
+            "llm_select_best (fast): model=%s n_candidates=%d prompt_chars=%d fast_output_cap=%d",
+            selector_model,
+            len(candidates),
+            len(prompt),
+            fast_out_cap,
+        )
+
+        resp = client.chat.completions.create(
+            model=selector_model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_SELECTOR},
+                {"role": "user", "content": prompt},
+            ],
+            timeout=timeout,
+            response_format={"type": "json_object"},
+            **_fast_path_sampling_kwargs(selector_model),
+            **_fast_path_limit_kwargs(selector_model, fast_out_cap),
+        )
+
+        content, finish_reason, reasoning_len = _extract_content_from_openai_response(resp)
+        if not content:
+            retry_knowledge_hint = _build_knowledge_hint(keywords, knowledge, min(knowledge_limit, 1000))
+            retry_prompt = _build_selector_prompt(keywords, llm_candidates, retry_knowledge_hint)
+            retry_resp = client.chat.completions.create(
+                model=selector_model,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_SELECTOR},
+                    {"role": "user", "content": retry_prompt},
+                ],
+                timeout=timeout,
+                response_format={"type": "json_object"},
+                **_fast_path_sampling_kwargs(selector_model),
+                **_fast_path_limit_kwargs(selector_model, _fast_path_retry_output_cap(selector_model)),
+            )
+            content, finish_reason, reasoning_len = _extract_content_from_openai_response(retry_resp)
+        if not content:
+            logger.warning(
+                "fast path empty content, finish_reason=%s reasoning_content_len=%d",
+                finish_reason,
+                reasoning_len,
+            )
+            raise ValueError("fast path: empty content from model")
+
+        obj = json.loads(content)
+        idx = int(obj.get("index", 0) or 0)
+        reason = str(obj.get("reason") or obj.get("reasoning") or "")[:_SELECTOR_REASON_MAX_LEN]
+
+        if idx <= 0:
+            return None
+        if idx > len(llm_candidates):
+            return _rule_based_fallback(keywords, candidates, reason="llm_index_out_of_range")
+
+        return _candidate_to_result(llm_candidates[idx - 1], reason)
+
+    except Exception as e:
+        logger.warning("fast path selector failed, fallback to rules: %s", e)
+        return _rule_based_fallback(keywords, candidates, reason="llm_error")
+
+
+def llm_select_best(
+    keywords: str,
+    candidates: list[dict[str, Any]],
+    max_tokens: int | None = None,
+    knowledge_override: str | None = None,
+) -> Optional[dict[str, Any]]:
+    """Select the best candidate by LLM; return None when LLM decides index=0.
+
+    When LLM_SELECTOR_MODEL is set in config, routes to the fast path
+    (_fast_path) which uses a non-thinking model with response_format=json_object
+    and a bounded completion cap (default 500, LLM_SELECTOR_FAST_OUTPUT_TOKENS). Otherwise uses the original glm-4.5-air path unchanged.
+
+    Args:
+        keywords: Product search keywords.
+        candidates: List of candidate dicts with keys: code, matched_name, unit_price, source.
+        max_tokens: Override max_tokens for the old path only. Ignored by fast path.
+        knowledge_override: Override the business knowledge text (fast path only; legacy path ignores).
+    """
+    if not candidates:
+        return None
+
+    try:
+        from inventory.config import config
+    except Exception:
+        config = None
+
+    selector_model = (getattr(config, "LLM_SELECTOR_MODEL", "") or "").strip() if config is not None else ""
+    selector_api_key = (getattr(config, "LLM_SELECTOR_API_KEY", "") or "").strip() if config is not None else ""
+    if selector_model and selector_api_key:
+        fast_result = _fast_path(keywords, candidates, config, selector_model, knowledge_override)
+        if fast_result is None:
+            return None
+        meta = fast_result.get("_selection_meta", {}) if isinstance(fast_result, dict) else {}
+        if meta.get("from_rule_fallback"):
+            logger.warning(
+                "fast path fell back to rules (reason=%s); trying legacy selector path",
+                meta.get("reason"),
+            )
+        else:
+            return fast_result
+    if selector_model and not selector_api_key:
+        logger.warning(
+            "LLM_SELECTOR_MODEL is set but LLM_SELECTOR_API_KEY is empty; using legacy selector path"
+        )
+
+    if max_tokens is None:
+        max_tokens = int(
+            getattr(config, "LLM_SELECTOR_MAX_TOKENS", _SELECTOR_DEFAULT_MAX_TOKENS)
+            if config is not None
+            else _SELECTOR_DEFAULT_MAX_TOKENS
+        )
+
+    candidate_limit = int(
+        getattr(config, "LLM_SELECTOR_CANDIDATE_LIMIT", _SELECTOR_DEFAULT_CANDIDATE_LIMIT)
+        if config is not None
+        else _SELECTOR_DEFAULT_CANDIDATE_LIMIT
+    )
+    candidate_limit = max(1, min(candidate_limit, 20))
+
+    knowledge_limit = int(
+        getattr(config, "LLM_SELECTOR_KNOWLEDGE_CHAR_LIMIT", _SELECTOR_DEFAULT_KNOWLEDGE_CHAR_LIMIT)
+        if config is not None
+        else _SELECTOR_DEFAULT_KNOWLEDGE_CHAR_LIMIT
+    )
+    knowledge_limit = max(200, min(knowledge_limit, 4000))
+    # Whether to inject full knowledge (no compaction). Reads INVENTORY_LLM_SELECTOR_FULL_KNOWLEDGE, default True.
+    _full_knowledge: bool = (
+        os.environ.get("INVENTORY_LLM_SELECTOR_FULL_KNOWLEDGE", "1").strip().lower() in ("1", "true", "yes")
+    )
+
+    sorted_candidates = _apply_candidate_pre_filter(keywords, candidates)
+    llm_candidates = sorted_candidates[:candidate_limit]
+
+    lines: list[str] = []
+    for i, c in enumerate(llm_candidates, 1):
+        code = (c.get("code") or "").strip()
+        name = (c.get("matched_name") or "")[:120]
+        price = c.get("unit_price", 0)
+        source = (c.get("source") or "")[:30]
+        lines.append(
+            f"{i}. [{code}] {name} | price={price} | src={source} | src_rank={_source_rank(source)}"
+        )
+    candidates_text = "\n".join(lines)
+
+    # Mandatory: include business knowledge in selector prompt.
+    knowledge = _load_business_knowledge()
+    # Full injection by default (INVENTORY_LLM_SELECTOR_FULL_KNOWLEDGE=1); compaction only when disabled.
+    knowledge_hint = knowledge if _full_knowledge else _build_knowledge_hint(keywords, knowledge, knowledge_limit)
+
+    prompt = _build_selector_prompt(keywords, llm_candidates, knowledge_hint)
+
+    try:
+        content = ""
+        api_key = getattr(config, "LLM_API_KEY", "") if config is not None else ""
+        base_url = (
+            getattr(config, "LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+            if config is not None
+            else "https://open.bigmodel.cn/api/paas/v4"
+        )
+        model = getattr(config, "LLM_MODEL", "glm-4.5-air") if config is not None else "glm-4.5-air"
+        timeout = int(getattr(config, "LLM_SELECTOR_TIMEOUT", 40)) if config is not None else 40
+        mt = min(max(32, int(max_tokens or _SELECTOR_DEFAULT_MAX_TOKENS)), _SELECTOR_MAX_TOKENS_CAP)
+
+        from openai import OpenAI
+
+        logger.info(
+            "llm_select_best: OpenAI-compatible model=%s n_candidates=%d prompt_chars=%d",
+            model,
+            len(candidates),
+            len(prompt),
+        )
+        client = OpenAI(api_key=api_key, base_url=base_url)
+
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_SELECTOR},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0,
+            max_tokens=mt,
+            timeout=timeout,
+        )
+        content, finish_reason, reasoning_len = _extract_content_from_openai_response(resp)
+
+        # length 截断时重试一次：提高 max_tokens，并压缩知识（避免 length 再次触发）
+        if not content and finish_reason == "length":
+            retry_mt = min(_SELECTOR_MAX_TOKENS_CAP, max(mt * 2, 320))
+            retry_knowledge_hint = _build_knowledge_hint(keywords, knowledge, min(knowledge_limit, 1000))
+            retry_prompt = _build_selector_prompt(keywords, llm_candidates, retry_knowledge_hint)
+            logger.warning(
+                "selector hit length; retry once with higher max_tokens=%d", retry_mt
+            )
+            retry_resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_SELECTOR},
+                    {"role": "user", "content": retry_prompt},
+                ],
+                temperature=0,
+                max_tokens=retry_mt,
+                timeout=timeout,
+            )
+            content, finish_reason, reasoning_len = _extract_content_from_openai_response(retry_resp)
+
+        if not content:
+            logger.warning(
+                "selector empty content, finish_reason=%s reasoning_content_len=%d",
+                finish_reason,
+                reasoning_len,
+            )
+            raise ValueError("selector empty content")
+
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.strip("`")
+            if content.lower().startswith("json"):
+                content = content[4:].strip()
+
+        obj: dict[str, Any] | None = None
+        parsed: Any = None
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, dict):
+                obj = parsed
+        except json.JSONDecodeError:
+            m_json = re.search(r"\{[\s\S]*?\}", content)
+            if m_json:
+                try:
+                    parsed = json.loads(m_json.group(0))
+                    if isinstance(parsed, dict):
+                        obj = parsed
+                except json.JSONDecodeError:
+                    obj = None
+
+            if obj is None:
+                m_idx = re.search(r'"index"\s*:\s*(-?\d+)', content)
+                m_reason = re.search(r'"(?:reason|reasoning)"\s*:\s*"([^\"]*)"', content)
+                if m_idx:
+                    obj = {
+                        "index": int(m_idx.group(1)),
+                        "reason": (m_reason.group(1) if m_reason else "").strip(),
+                    }
+
+        # backward compatibility: old schema {"options": [{"index":..., "reasoning":...}]}
+        if obj is None and isinstance(parsed, dict) and isinstance(parsed.get("options"), list):
+            for opt in parsed["options"]:
+                if isinstance(opt, dict) and "index" in opt:
+                    obj = {
+                        "index": int(opt.get("index", 0) or 0),
+                        "reason": (opt.get("reason") or opt.get("reasoning") or "").strip(),
+                    }
+                    break
+
+        if obj is None:
+            raise ValueError(f"selector parse failed: {content[:120]}")
+
+        idx = int(obj.get("index", 0) or 0)
+        reason = (obj.get("reason") or obj.get("reasoning") or "").strip()[:_SELECTOR_REASON_MAX_LEN]
+
+        if idx <= 0:
+            return None
+        if idx > len(llm_candidates):
+            return _rule_based_fallback(keywords, candidates, reason="llm_index_out_of_range")
+
+        return _candidate_to_result(llm_candidates[idx - 1], reason)
+    except Exception as e:
+        logger.warning("LLM selector failed, fallback to rules: %s", e)
+        return _rule_based_fallback(keywords, candidates, reason="llm_error")
+
+
+def _candidate_to_result(c: dict[str, Any], reasoning: str = "") -> dict[str, Any]:
+    return {
+        "code": (c.get("code") or "").strip(),
+        "matched_name": (c.get("matched_name") or "")[:200],
+        "unit_price": float(c.get("unit_price", 0) or 0),
+        "reasoning": reasoning,
+    }
+
+
+def _apply_candidate_pre_filter(
+    keywords: str,
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Apply deterministic scoring rules to candidates before LLM selection.
+    Returns candidates sorted by _pre_score descending.
+    Only re-ranks — never filters. LLM can still override edge cases.
+    """
+    if not candidates:
+        return candidates
+
+    kw_low = (keywords or "").lower()
+
+    has_water_supply = (
+        "给水" in kw_low
+        or "aw给水" in kw_low
+        or "冷给水" in kw_low
+        or "热给水" in kw_low
+        or re.search(r"(^|[^a-z0-9])aw($|[^a-z0-9])", kw_low) is not None
+    )
+    has_guobiao = "国标" in kw_low
+    has_hot_water = "热水" in kw_low or "热给水" in kw_low
+    has_cold_water = "冷水" in kw_low or "冷给水" in kw_low
+    has_pressure = bool(re.search(r"\d+\.?\d*\s*mpa|pn\s*\d+", kw_low))
+    has_corrugated = "双壁波纹管" in kw_low or "corrugated" in kw_low
+    has_10kn = "10kn" in kw_low
+    explicit_pressure: str | None = None
+    m_mpa = re.search(r"(\d+(?:\.\d+)?)\s*mpa", kw_low)
+    if m_mpa:
+        explicit_pressure = m_mpa.group(1)
+    else:
+        m_pn = re.search(r"pn\s*(\d+(?:\.\d+)?)", kw_low)
+        if m_pn:
+            try:
+                explicit_pressure = f"{float(m_pn.group(1)) / 10:.2f}".rstrip("0").rstrip(".")
+            except Exception:
+                explicit_pressure = None
+
+    scored: list[dict[str, Any]] = []
+    for c in candidates:
+        score = 0
+        name_raw: str = c.get("matched_name") or ""
+        name = name_raw.lower()
+        src = (c.get("source") or "").strip()
+
+        if not has_water_supply:
+            if "aw给水系列" in name or "(aw" in name:
+                score -= 15
+            if "d排水系列" in name or "排水配件" in name:
+                score += 8
+
+        if has_guobiao:
+            if "印尼(日标)" in name_raw:
+                score -= 10
+            else:
+                score += 6
+        elif "印尼(日标)" in name_raw:
+            score += 6
+
+        if has_corrugated:
+            if "双壁波纹管" in name or "corrugated" in name:
+                score += 20
+            else:
+                score -= 12
+        if has_10kn:
+            if "sn8" in name:
+                score += 12
+            if "sn4" in name:
+                score -= 6
+
+        if has_hot_water:
+            if "热给水" in name:
+                score += 8
+            if "冷给水" in name:
+                score -= 7
+        if has_cold_water:
+            if "冷给水" in name:
+                score += 8
+            if "热给水" in name:
+                score -= 7
+
+        if not has_pressure:
+            if "1.0mpa" in name or "1 mpa" in name or "1.0 mpa" in name:
+                score += 3
+            if "1.25mpa" in name or "1.6mpa" in name:
+                score -= 2
+        elif explicit_pressure:
+            name_no_space = name.replace(" ", "")
+            if f"{explicit_pressure}mpa" in name_no_space:
+                score += 10
+            elif "mpa" in name_no_space:
+                score -= 4
+
+        if "联塑" in name_raw:
+            score += 2
+
+        rank = _source_rank(src)
+        if rank == 0:
+            score += 9
+        elif rank == 1:
+            score += 6
+        elif rank == 2:
+            score += 3
+
+        entry = dict(c)
+        entry["_pre_score"] = score
+        scored.append(entry)
+
+    return sorted(scored, key=lambda x: x["_pre_score"], reverse=True)
+
+
+def _rule_based_fallback(
+    keywords: str,
+    candidates: list[dict[str, Any]],
+    reason: str = "llm_error",
+) -> Optional[dict[str, Any]]:
+    if not candidates:
+        return None
+    sorted_candidates = _apply_candidate_pre_filter(keywords, candidates)
+    c = sorted_candidates[0]
+    return {
+        "code": (c.get("code") or "").strip(),
+        "matched_name": (c.get("matched_name") or "")[:200],
+        "unit_price": float(c.get("unit_price", 0) or 0),
+        "reasoning": f"[规则回退] {reason}",
+        "_selection_meta": {
+            "from_rule_fallback": True,
+            "pre_score": c.get("_pre_score", 0),
+        },
+    }

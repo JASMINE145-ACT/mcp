@@ -1,0 +1,9 @@
+﻿.env*
+!.env.example
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+*_filled.xlsx
+*_perf_filled.xlsx
