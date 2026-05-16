@@ -2,9 +2,9 @@
   "mcpServers": {
     "quotation": {
       "command": "bun",
-      "args": ["run", "start"],
+      "args": ["--cwd", "<absolute path to this repository>/quotation-mcp", "run", "start"],
       "env": {
-        "CCB_PROJECT_ROOT": "<absolute path to this repository>",
+        "CCB_PROJECT_ROOT": "<absolute path to this repository>/quotation-mcp",
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUTF8": "1",
         "ENABLE_WANDING_VECTOR": "0",

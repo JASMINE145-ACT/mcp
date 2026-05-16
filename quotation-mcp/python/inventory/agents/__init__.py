@@ -1,9 +1,8 @@
-"""
-Inventory Agent - Agents 子模块
-"""
+﻿"""Standalone inventory agents used by the quotation MCP server."""
 
-from inventory.agents.plan_agent import InventoryPlanAgent
 from inventory.agents.table_agent import InventoryTableAgent
 from inventory.agents.sql_agent import InventorySQLAgent
+
+InventoryPlanAgent = None
 
 __all__ = ["InventoryPlanAgent", "InventoryTableAgent", "InventorySQLAgent"]
