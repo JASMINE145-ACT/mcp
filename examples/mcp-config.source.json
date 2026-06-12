@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "wechat-ai-publisher": {
+      "command": "python",
+      "args": ["D:/path/to/wechat-ai-publisher/server.py"],
+      "cwd": "D:/path/to/wechat-ai-publisher"
+    }
+  }
+}

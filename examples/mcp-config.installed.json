@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wechat-ai-publisher": {
+      "command": "wechat-ai-publisher-mcp",
+      "args": []
+    }
+  }
+}

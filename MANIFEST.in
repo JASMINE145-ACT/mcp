@@ -1,0 +1,9 @@
+include README.md
+include .env.example
+include run_server.bat
+include start.ps1
+recursive-include prompts *.md
+recursive-include style *.md
+recursive-include config *.yaml
+recursive-include docs *.md
+recursive-include examples *.json

@@ -1,0 +1,36 @@
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+storage/drafts/
+storage/html/
+storage/markdown/
+storage/images/
+storage/logs/
+!storage/drafts/.gitkeep
+!storage/html/.gitkeep
+!storage/markdown/.gitkeep
+!storage/images/.gitkeep
+!storage/logs/.gitkeep
+images/default_cover.jpg
+*.log
+
+# Storage temp files
+storage/__pycache__/
+storage/preview_*.html
+storage/task.py
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Accidental directory (delete this after removing the folder)
+Projectsagent-jkexcel-mcp-server/

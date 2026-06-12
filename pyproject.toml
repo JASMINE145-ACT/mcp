@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wechat-ai-publisher"
+version = "0.1.0"
+description = "MCP server for WeChat Official Account article rendering, draft management, and publishing workflows."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31.0",
+  "python-dotenv>=1.0.0",
+  "openai>=1.30.0",
+  "typer>=0.12.0",
+  "markdown>=3.6",
+  "beautifulsoup4>=4.12.0",
+  "Pillow>=10.0.0",
+  "tenacity>=8.2.0",
+  "loguru>=0.7.0",
+  "mcp>=1.0.0",
+  "exa-py>=1.1.0",
+  "scrapling[fetchers]>=0.4.0",
+  "tavily-python>=0.3.0",
+]
+
+[project.scripts]
+wechat-ai-publisher-mcp = "mcp_entry:run"
+
+[tool.setuptools]
+py-modules = ["main", "server", "mcp_entry"]
+packages = ["ai", "config", "images", "render", "sources", "storage", "wechat"]
+include-package-data = true
