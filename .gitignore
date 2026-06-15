@@ -26,7 +26,6 @@ images/default_cover.jpg
 # Storage temp files
 storage/__pycache__/
 storage/preview_*.html
-storage/task.py
 
 # Python cache
 __pycache__/
