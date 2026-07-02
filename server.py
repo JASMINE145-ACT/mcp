@@ -7,6 +7,7 @@ Claude 负责生成文章内容，本 server 提供微信操作工具：
 - wechat_research          用 Exa 搜索资料，返回结构化摘要供写稿使用
 - wechat_tavily_search     用 Tavily 搜索最新资料，返回标题+URL+摘要，适合写稿前收集素材
 - wechat_fetch_url         用 Scrapling 抓取指定 URL 的正文内容，无需 API key
+- wechat_deep_research     服务端深度调研：拆子问题→多源搜索→综合成带引用报告，写文章类任务优先用这个
 
 图片处理：
 - wechat_search_cover_image  根据关键词搜索封面图，返回 URL 列表
@@ -32,6 +33,22 @@ Claude 负责生成文章内容，本 server 提供微信操作工具：
 
 一键流程：
 - wechat_full_pipeline     一步到位：markdown + 封面图 → 草稿
+
+任务恢复：
+- wechat_resume_task       从失败位置继续执行（输入 task_dir）
+- wechat_preview_task      草稿发布前预览：标题/字数/封面/来源/风险点
+
+内容审核：
+- wechat_audit_before_publish  发布前综合审核（标题党/事实声明/来源/摘要/封面）
+- wechat_save_sources          保存文章来源引用列表到 task_dir/sources.json
+
+账号管理：
+- wechat_list_profiles     列出可用的公众号账号 profile
+
+选题库：
+- wechat_add_topic         添加选题到待审队列
+- wechat_approve_topic     审批选题（pending → approved）
+- wechat_list_topics       查看选题队列（pending/approved/all）
 """
 
 import sys
@@ -236,6 +253,37 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="wechat_deep_research",
+            description=(
+                "写文章前的深度调研：把主题拆成若干子问题，对每个子问题并行调用 Tavily + Exa 搜索，"
+                "按 URL 去重后交给 AI 综合成一份带编号引用的调研报告（Markdown）。"
+                "这是服务端内置能力，不依赖客户端自带的调研技能——任何模型/客户端调用本 MCP 都能拿到同等效果。"
+                "写文章类任务建议先调用此工具拿到 report_markdown，再把关键信息整理进 wechat_full_pipeline 的正文；"
+                "只是想查一条信息、核实单个事实这种轻量任务不需要用这个，直接用 wechat_tavily_search / wechat_research 更快。"
+                "需要在 .env 配置 OPENAI_API_KEY（拆题+综合报告），以及 TAVILY_API_KEY 和/或 EXA_API_KEY（至少一个，用于搜索）。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "topic": {
+                        "type": "string",
+                        "description": "调研主题，越具体效果越好，例如 '大语言模型预训练的原理、数据规模与训练成本 2026'",
+                    },
+                    "num_subquestions": {
+                        "type": "integer",
+                        "description": "把主题拆成几个子问题，默认 4",
+                        "default": 4,
+                    },
+                    "num_results_per_query": {
+                        "type": "integer",
+                        "description": "每个子问题每个搜索源返回几条结果，默认 5，最多 10",
+                        "default": 5,
+                    },
+                },
+                "required": ["topic"],
+            },
+        ),
+        types.Tool(
             name="wechat_search_cover_image",
             description=(
                 "根据关键词搜索与文章高度相关的封面图，返回图片 URL 列表供选择。"
@@ -311,8 +359,10 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="wechat_validate_content",
             description=(
-                "发布前检查文章内容质量：检测正文长度不足、AI 口吻表达、"
-                "未填充的占位符、重复段落、未闭合代码块等问题。建议每次发布前调用。"
+                "发布前检查文章内容质量：长度不足、AI 口吻、占位符、重复段落、"
+                "事实声明来源缺失、标题党词汇、超长段落等。\n"
+                "传入 task_dir 可自动加载该任务的来源引用（sources.json），"
+                "对事实声明做更精准的核查。"
             ),
             inputSchema={
                 "type": "object",
@@ -320,6 +370,10 @@ async def list_tools() -> list[types.Tool]:
                     "title": {"type": "string", "description": "文章标题"},
                     "digest": {"type": "string", "description": "文章摘要（可选）"},
                     "markdown": {"type": "string", "description": "文章正文 Markdown"},
+                    "task_dir": {
+                        "type": "string",
+                        "description": "本地任务目录路径（可选），用于自动加载 sources.json",
+                    },
                 },
                 "required": ["title", "markdown"],
             },
@@ -468,6 +522,176 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["title", "markdown", "digest"],
             },
         ),
+        # ── Task recovery ────────────────────────────────────────────────────
+        types.Tool(
+            name="wechat_resume_task",
+            description=(
+                "从失败位置继续执行流水线。传入 task_dir（本地任务目录），"
+                "工具自动检测上一步成功位置，从下一步开始重跑（上传封面 or 创建草稿）。"
+                "适合 full_pipeline 中途失败后恢复。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_dir": {
+                        "type": "string",
+                        "description": "本地任务目录路径，如 storage/drafts/2026-06-20-xxx",
+                    },
+                },
+                "required": ["task_dir"],
+            },
+        ),
+        types.Tool(
+            name="wechat_preview_task",
+            description=(
+                "发布前预览一个任务的完整状态：标题、字数、摘要、封面、来源数量、"
+                "步骤历史、风险提示。建议在 wechat_audit_before_publish 之前调用。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_dir": {
+                        "type": "string",
+                        "description": "本地任务目录路径",
+                    },
+                },
+                "required": ["task_dir"],
+            },
+        ),
+        # ── Audit ─────────────────────────────────────────────────────────────
+        types.Tool(
+            name="wechat_audit_before_publish",
+            description=(
+                "发布前综合审核（比 wechat_validate_content 更全面）：\n"
+                "  · 标题党风险词检测\n"
+                "  · 事实声明来源核查\n"
+                "  · 摘要长度检查\n"
+                "  · 封面文件可访问性\n"
+                "  · 步骤完整性（是否已完成 cover_uploaded + draft_created）\n"
+                "返回 passed/warnings/blockers，blockers 须修复后才能发布。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_dir": {
+                        "type": "string",
+                        "description": "本地任务目录路径",
+                    },
+                },
+                "required": ["task_dir"],
+            },
+        ),
+        types.Tool(
+            name="wechat_save_sources",
+            description=(
+                "将文章来源引用列表保存到 task_dir/sources.json，供内容审核和可信度追溯使用。\n"
+                "每个来源包含：url、title、date（可选）、key_points（可选）、risk_level（low/medium/high）。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_dir": {
+                        "type": "string",
+                        "description": "本地任务目录路径",
+                    },
+                    "sources": {
+                        "type": "array",
+                        "description": "来源列表",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "url": {"type": "string"},
+                                "title": {"type": "string"},
+                                "date": {"type": "string"},
+                                "key_points": {"type": "string"},
+                                "risk_level": {"type": "string", "enum": ["low", "medium", "high"]},
+                            },
+                            "required": ["url"],
+                        },
+                    },
+                },
+                "required": ["task_dir", "sources"],
+            },
+        ),
+        # ── Account profiles ─────────────────────────────────────────────────
+        types.Tool(
+            name="wechat_list_profiles",
+            description=(
+                "列出所有可用的公众号账号 profile（从 config/profiles/*.yaml 读取）。"
+                "每个 profile 包含默认作者、默认模板、目标读者、禁用词等配置。\n"
+                "当前活跃 profile 通过环境变量 WECHAT_PROFILE 指定，默认使用 default profile。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "如填写，返回该 profile 的详细配置（不填则列出所有）",
+                    },
+                },
+                "required": [],
+            },
+        ),
+        # ── Topic library ─────────────────────────────────────────────────────
+        types.Tool(
+            name="wechat_add_topic",
+            description="将一个选题添加到待审队列（pending）。选题审批后可变为 approved，再由 full_pipeline 消费。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "选题主题"},
+                    "account": {"type": "string", "description": "目标公众号名称（可选）"},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "normal", "low"],
+                        "description": "优先级，默认 normal",
+                        "default": "normal",
+                    },
+                    "angle": {"type": "string", "description": "写作角度（可选）"},
+                    "source_urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "相关参考链接（可选）",
+                    },
+                    "deadline": {"type": "string", "description": "截止日期 YYYY-MM-DD（可选）"},
+                },
+                "required": ["topic"],
+            },
+        ),
+        types.Tool(
+            name="wechat_approve_topic",
+            description="审批选题，将 pending 中的选题移入 approved 队列，使其可以被 full_pipeline 处理。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "topic_id": {"type": "string", "description": "选题 ID（从 wechat_list_topics 获取）"},
+                    "note": {"type": "string", "description": "审批备注（可选）"},
+                },
+                "required": ["topic_id"],
+            },
+        ),
+        types.Tool(
+            name="wechat_list_topics",
+            description="查看选题队列。queue 可选 pending / approved / rejected / published / all。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "queue": {
+                        "type": "string",
+                        "enum": ["pending", "approved", "rejected", "published", "all"],
+                        "description": "队列名称，默认 all",
+                        "default": "all",
+                    },
+                    "account": {"type": "string", "description": "按公众号筛选（可选）"},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "normal", "low"],
+                        "description": "按优先级筛选（可选）",
+                    },
+                },
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -492,6 +716,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _fetch_url(arguments)
         elif name == "wechat_research":
             return await _research(arguments)
+        elif name == "wechat_deep_research":
+            return await _deep_research(arguments)
         elif name == "wechat_search_cover_image":
             return await _search_cover_image(arguments)
         elif name == "wechat_upload_body_image":
@@ -516,6 +742,22 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _get_publish_status(arguments)
         elif name == "wechat_list_local_tasks":
             return await _list_local_tasks(arguments)
+        elif name == "wechat_resume_task":
+            return await _resume_task(arguments)
+        elif name == "wechat_preview_task":
+            return await _preview_task(arguments)
+        elif name == "wechat_audit_before_publish":
+            return await _audit_before_publish(arguments)
+        elif name == "wechat_save_sources":
+            return await _save_sources(arguments)
+        elif name == "wechat_list_profiles":
+            return await _list_profiles(arguments)
+        elif name == "wechat_add_topic":
+            return await _add_topic(arguments)
+        elif name == "wechat_approve_topic":
+            return await _approve_topic(arguments)
+        elif name == "wechat_list_topics":
+            return await _list_topics(arguments)
         else:
             return [types.TextContent(type="text", text=f"未知工具: {name}")]
     except Exception as e:
@@ -869,6 +1111,34 @@ async def _research(args: dict) -> list[types.TextContent]:
     )]
 
 
+async def _deep_research(args: dict) -> list[types.TextContent]:
+    from ai.deep_research import run_deep_research
+
+    topic = args["topic"]
+    num_subquestions = int(args.get("num_subquestions", 4))
+    num_results_per_query = min(int(args.get("num_results_per_query", 5)), 10)
+
+    try:
+        result = run_deep_research(topic, num_subquestions, num_results_per_query)
+    except Exception as e:
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "error",
+            "message": str(e),
+        }, ensure_ascii=False))]
+
+    return [types.TextContent(
+        type="text",
+        text=json.dumps({
+            "status": "ok",
+            "topic": result["topic"],
+            "subquestions": result["subquestions"],
+            "num_sources": len(result["sources"]),
+            "report_markdown": result["report_markdown"],
+            "sources": result["sources"],
+        }, ensure_ascii=False),
+    )]
+
+
 async def _search_cover_image(args: dict) -> list[types.TextContent]:
     import os
     import requests
@@ -1113,7 +1383,10 @@ async def _full_pipeline(args: dict) -> list[types.TextContent]:
     from render.wechat_html_template import wrap_for_wechat
     from images.image_uploader import prepare_and_upload_cover
     from wechat.draft import create_draft
-    from storage.task import create_task_dir, save_markdown, save_html, save_upload_result, save_draft_result, save_article_json, update_status
+    from storage.task import (
+        create_task_dir, save_markdown, save_html, save_upload_result,
+        save_draft_result, save_article_json, update_status, record_step,
+    )
     from config.settings import get_default_author, get_default_source_url, get_default_cover_path
     from datetime import datetime
 
@@ -1169,6 +1442,7 @@ async def _full_pipeline(args: dict) -> list[types.TextContent]:
         "status": "html_rendered",
     }
     save_article_json(task_dir, article_data)
+    record_step(task_dir, "html_rendered", "success", {"html_path": str(html_path)})
 
     partial = {
         "title": title,
@@ -1177,21 +1451,26 @@ async def _full_pipeline(args: dict) -> list[types.TextContent]:
         "html_path": str(html_path),
     }
 
-    # Step 3: Upload cover (may fail — return partial so caller can retry with wechat_upload_cover)
+    # Step 3: Upload cover (may fail — return partial so caller can retry with wechat_resume_task)
     try:
         thumb_media_id = prepare_and_upload_cover(cover_path, str(task_dir))
         save_upload_result(task_dir, {"thumb_media_id": thumb_media_id})
         update_status(task_dir, "image_uploaded")
+        record_step(task_dir, "cover_uploaded", "success", {"thumb_media_id": thumb_media_id})
         partial["thumb_media_id"] = thumb_media_id
     except Exception as e:
+        record_step(task_dir, "cover_uploaded", "failed", error=str(e))
         partial["step_failed"] = "upload_cover"
         partial["error"] = str(e)
-        partial["hint"] = "HTML 和 Markdown 已保存到 task_dir。修复封面问题后可单独调用 wechat_upload_cover + wechat_create_draft 完成。"
+        partial["hint"] = (
+            "HTML 和 Markdown 已保存到 task_dir。"
+            "修复封面问题后调用 wechat_resume_task 从断点继续。"
+        )
         return [types.TextContent(type="text", text=json.dumps(
             {"status": "partial", **partial}, ensure_ascii=False
         ))]
 
-    # Step 4: Create draft (may fail — return partial so caller can retry with wechat_create_draft)
+    # Step 4: Create draft (may fail — return partial so caller can retry with wechat_resume_task)
     try:
         media_id = create_draft(
             title=title,
@@ -1206,10 +1485,15 @@ async def _full_pipeline(args: dict) -> list[types.TextContent]:
         save_article_json(task_dir, article_data)
         save_draft_result(task_dir, {"media_id": media_id, "created_at": datetime.now().isoformat()})
         update_status(task_dir, "draft_created")
+        record_step(task_dir, "draft_created", "success", {"media_id": media_id})
     except Exception as e:
+        record_step(task_dir, "draft_created", "failed", error=str(e))
         partial["step_failed"] = "create_draft"
         partial["error"] = str(e)
-        partial["hint"] = f"封面已上传（thumb_media_id={thumb_media_id}）。修复问题后可单独调用 wechat_create_draft 完成。"
+        partial["hint"] = (
+            f"封面已上传（thumb_media_id={thumb_media_id}）。"
+            "调用 wechat_resume_task 从断点继续，或手动调用 wechat_create_draft。"
+        )
         return [types.TextContent(type="text", text=json.dumps(
             {"status": "partial", **partial}, ensure_ascii=False
         ))]
@@ -1265,17 +1549,33 @@ async def _list_templates() -> list[types.TextContent]:
 
 async def _validate_content(args: dict) -> list[types.TextContent]:
     from ai.content_checker import check_article
+    from storage.task import load_sources
+    from pathlib import Path as _Path
+
+    sources = []
+    task_dir = args.get("task_dir", "").strip()
+    if task_dir:
+        sources = load_sources(_Path(task_dir))
+
     result = check_article({
         "title": args.get("title", ""),
         "digest": args.get("digest", ""),
         "markdown": args.get("markdown", ""),
-    })
+    }, sources=sources)
+
     return [types.TextContent(type="text", text=json.dumps({
         "status": "ok",
         "passed": result.passed,
         "errors": result.errors,
         "warnings": result.warnings,
-        "summary": "✅ 内容检查通过" if result.passed else f"❌ 发现 {len(result.errors)} 个错误，{len(result.warnings)} 个警告",
+        "fact_claims": result.fact_claims,
+        "title_risks": result.title_risks,
+        "sources_loaded": len(sources),
+        "source_required": result.source_required,
+        "summary": (
+            "✅ 内容检查通过" if result.passed
+            else f"❌ 发现 {len(result.errors)} 个错误，{len(result.warnings)} 个警告"
+        ),
     }, ensure_ascii=False))]
 
 
@@ -1420,6 +1720,357 @@ async def _list_local_tasks(args: dict) -> list[types.TextContent]:
         "drafts_dir": str(DRAFTS_DIR),
         "count": len(tasks),
         "tasks": tasks,
+    }, ensure_ascii=False))]
+
+
+async def _resume_task(args: dict) -> list[types.TextContent]:
+    """Resume a pipeline from the last successful step."""
+    from storage.task import get_resume_context, record_step, update_status, load_article_json
+    from pathlib import Path as _Path
+
+    task_dir = _Path(args["task_dir"])
+    if not task_dir.exists():
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "error",
+            "message": f"任务目录不存在: {task_dir}",
+        }, ensure_ascii=False))]
+
+    ctx = get_resume_context(task_dir)
+    resume_step = ctx["resume_step"]
+
+    if resume_step == "completed":
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "ok",
+            "message": "流水线已全部完成，无需恢复。",
+            "context": ctx,
+        }, ensure_ascii=False))]
+
+    result: dict = {"resume_from": resume_step, **ctx}
+
+    if resume_step == "cover_uploaded":
+        # Need to re-upload cover
+        cover_path = ctx.get("cover_path", "")
+        if not cover_path:
+            article = load_article_json(task_dir)
+            cover_path = article.get("cover_path", "")
+        if not cover_path:
+            return [types.TextContent(type="text", text=json.dumps({
+                "status": "error",
+                "message": "找不到封面图路径，请手动调用 wechat_upload_cover",
+                "context": ctx,
+            }, ensure_ascii=False))]
+
+        from images.image_uploader import prepare_and_upload_cover
+        from storage.task import save_upload_result
+        thumb_media_id = prepare_and_upload_cover(cover_path, str(task_dir))
+        save_upload_result(task_dir, {"thumb_media_id": thumb_media_id})
+        record_step(task_dir, "cover_uploaded", "success", {"thumb_media_id": thumb_media_id})
+        update_status(task_dir, "image_uploaded")
+        result["thumb_media_id"] = thumb_media_id
+        resume_step = "draft_created"
+
+    if resume_step == "draft_created":
+        thumb_media_id = result.get("thumb_media_id") or ctx.get("thumb_media_id", "")
+        if not thumb_media_id:
+            return [types.TextContent(type="text", text=json.dumps({
+                "status": "error",
+                "message": "缺少 thumb_media_id，请先调用 wechat_upload_cover",
+                "context": ctx,
+            }, ensure_ascii=False))]
+
+        html_path = ctx.get("html_path") or str(task_dir / "article.html")
+        html_content = _Path(html_path).read_text(encoding="utf-8") if _Path(html_path).exists() else ""
+        if not html_content:
+            return [types.TextContent(type="text", text=json.dumps({
+                "status": "error",
+                "message": f"HTML 文件不存在: {html_path}",
+                "context": ctx,
+            }, ensure_ascii=False))]
+
+        from wechat.draft import create_draft
+        from storage.task import save_draft_result
+        from config.settings import get_default_source_url
+
+        article = load_article_json(task_dir)
+        media_id = create_draft(
+            title=ctx["title"],
+            author=ctx.get("author") or "2AIBot",
+            digest=ctx.get("digest", ""),
+            content_html=html_content,
+            thumb_media_id=thumb_media_id,
+            source_url=article.get("source_url") or get_default_source_url(),
+        )
+        save_draft_result(task_dir, {"media_id": media_id, "created_at": datetime.now().isoformat()})
+        record_step(task_dir, "draft_created", "success", {"media_id": media_id})
+        update_status(task_dir, "draft_created")
+        result["media_id"] = media_id
+
+    result["status"] = "ok"
+    result["message"] = "恢复执行完成，请前往微信公众号后台草稿箱审核。"
+    return [types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+
+
+async def _preview_task(args: dict) -> list[types.TextContent]:
+    """Generate a comprehensive pre-publish task summary."""
+    from storage.task import load_article_json, load_steps, load_sources, find_resume_step
+    from pathlib import Path as _Path
+
+    task_dir = _Path(args["task_dir"])
+    if not task_dir.exists():
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "error",
+            "message": f"任务目录不存在: {task_dir}",
+        }, ensure_ascii=False))]
+
+    article = load_article_json(task_dir)
+    steps = load_steps(task_dir)
+    sources = load_sources(task_dir)
+
+    md_path = task_dir / "article.md"
+    md_text = md_path.read_text(encoding="utf-8") if md_path.exists() else ""
+    html_path = task_dir / "article.html"
+
+    upload_result: dict = {}
+    try:
+        upload_result = json.loads((task_dir / "upload_result.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    draft_result: dict = {}
+    try:
+        draft_result = json.loads((task_dir / "draft_result.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    title = article.get("title", "")
+    digest = article.get("digest", "")
+
+    risks: list[str] = []
+    if len(title) > 21:
+        risks.append(f"标题较长（{len(title)} 字），推荐 ≤21 字")
+    if len(digest) > 20:
+        risks.append(f"摘要较长（{len(digest)} 字），封面展示通常只显示前 20 字")
+    if not sources:
+        risks.append("未保存来源引用，建议调用 wechat_save_sources")
+    cover_path = article.get("cover_path", "")
+    if cover_path and not _Path(cover_path).exists():
+        risks.append(f"封面文件已移动或不存在: {cover_path}")
+    if not upload_result.get("thumb_media_id"):
+        risks.append("封面尚未上传到微信 CDN（缺少 thumb_media_id）")
+    if not draft_result.get("media_id"):
+        risks.append("草稿尚未创建")
+
+    preview = {
+        "status": "ok",
+        "title": title,
+        "digest": digest,
+        "author": article.get("author", ""),
+        "word_count": len(md_text.replace(" ", "").replace("\n", "")),
+        "markdown_lines": md_text.count("\n") + 1 if md_text else 0,
+        "cover_path": cover_path,
+        "thumb_media_id": upload_result.get("thumb_media_id", ""),
+        "media_id": draft_result.get("media_id", ""),
+        "html_path": str(html_path) if html_path.exists() else "",
+        "sources_count": len(sources),
+        "sources": sources,
+        "pipeline_status": article.get("status", "unknown"),
+        "steps_completed": [s["step"] for s in steps if s.get("status") == "success"],
+        "next_step": find_resume_step(task_dir),
+        "risks": risks,
+        "ready_to_publish": len(risks) == 0 and bool(draft_result.get("media_id")),
+    }
+    return [types.TextContent(type="text", text=json.dumps(preview, ensure_ascii=False))]
+
+
+async def _audit_before_publish(args: dict) -> list[types.TextContent]:
+    """Comprehensive pre-publish audit: content + sources + pipeline completeness."""
+    from storage.task import load_article_json, load_steps, load_sources
+    from ai.content_checker import check_article
+    from pathlib import Path as _Path
+
+    task_dir = _Path(args["task_dir"])
+    if not task_dir.exists():
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "error",
+            "message": f"任务目录不存在: {task_dir}",
+        }, ensure_ascii=False))]
+
+    article = load_article_json(task_dir)
+    steps = load_steps(task_dir)
+    sources = load_sources(task_dir)
+
+    md_path = task_dir / "article.md"
+    md_text = md_path.read_text(encoding="utf-8") if md_path.exists() else ""
+
+    check_result = check_article({
+        "title": article.get("title", ""),
+        "digest": article.get("digest", ""),
+        "markdown": md_text,
+    }, sources=sources)
+
+    upload_result: dict = {}
+    try:
+        upload_result = json.loads((task_dir / "upload_result.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    draft_result: dict = {}
+    try:
+        draft_result = json.loads((task_dir / "draft_result.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    # Pipeline completeness check
+    blockers: list[str] = list(check_result.errors)
+    warnings: list[str] = list(check_result.warnings)
+
+    if not upload_result.get("thumb_media_id"):
+        blockers.append("封面尚未上传（缺少 thumb_media_id），请调用 wechat_upload_cover")
+    if not draft_result.get("media_id"):
+        blockers.append("草稿尚未创建（缺少 media_id），请调用 wechat_create_draft 或 wechat_full_pipeline")
+
+    # Title risk
+    for risk in check_result.title_risks:
+        warnings.append(risk)
+
+    # Fact claims summary
+    if check_result.fact_claims:
+        for claim in check_result.fact_claims:
+            warnings.append(f"事实声明核查: {claim}")
+
+    passed = len(blockers) == 0
+
+    summary_lines = [
+        f"{'✅' if passed else '❌'} 审核{'通过' if passed else '未通过'}",
+        f"  · 阻断项: {len(blockers)}",
+        f"  · 警告项: {len(warnings)}",
+        f"  · 事实声明: {len(check_result.fact_claims)} 处",
+        f"  · 来源引用: {len(sources)} 个",
+    ]
+
+    return [types.TextContent(type="text", text=json.dumps({
+        "status": "ok",
+        "passed": passed,
+        "blockers": blockers,
+        "warnings": warnings,
+        "fact_claims": check_result.fact_claims,
+        "title_risks": check_result.title_risks,
+        "sources_count": len(sources),
+        "thumb_media_id": upload_result.get("thumb_media_id", ""),
+        "media_id": draft_result.get("media_id", ""),
+        "summary": "\n".join(summary_lines),
+    }, ensure_ascii=False))]
+
+
+async def _save_sources(args: dict) -> list[types.TextContent]:
+    """Save source citations to task_dir/sources.json."""
+    from storage.task import save_sources, record_step
+    from pathlib import Path as _Path
+
+    task_dir = _Path(args["task_dir"])
+    if not task_dir.exists():
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "error",
+            "message": f"任务目录不存在: {task_dir}",
+        }, ensure_ascii=False))]
+
+    sources = args.get("sources", [])
+    save_sources(task_dir, sources)
+    record_step(task_dir, "sources_saved", "success", {"count": len(sources)})
+
+    return [types.TextContent(type="text", text=json.dumps({
+        "status": "ok",
+        "saved": len(sources),
+        "path": str(task_dir / "sources.json"),
+        "message": f"已保存 {len(sources)} 个来源引用",
+    }, ensure_ascii=False))]
+
+
+async def _list_profiles(args: dict) -> list[types.TextContent]:
+    """List available account profiles."""
+    from config.profiles import list_profiles, load_profile, get_current_profile
+
+    name = args.get("name", "").strip()
+    current = os.environ.get("WECHAT_PROFILE", "default")
+
+    if name:
+        profile = load_profile(name)
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "ok",
+            "profile_name": name,
+            "is_active": name == current,
+            "profile": profile,
+        }, ensure_ascii=False))]
+
+    all_names = list_profiles()
+    profiles_summary = []
+    for n in all_names:
+        p = load_profile(n)
+        profiles_summary.append({
+            "name": n,
+            "account_name": p.get("account_name", n),
+            "default_author": p.get("default_author", ""),
+            "default_template": p.get("default_template", "A"),
+            "is_active": n == current,
+        })
+
+    return [types.TextContent(type="text", text=json.dumps({
+        "status": "ok",
+        "active_profile": current,
+        "profiles": profiles_summary,
+        "tip": "通过环境变量 WECHAT_PROFILE=<name> 切换活跃 profile",
+    }, ensure_ascii=False))]
+
+
+async def _add_topic(args: dict) -> list[types.TextContent]:
+    from sources.topic_manager import add_topic
+
+    entry = add_topic(
+        topic=args["topic"],
+        account=args.get("account", ""),
+        priority=args.get("priority", "normal"),
+        angle=args.get("angle", ""),
+        source_urls=args.get("source_urls", []),
+        deadline=args.get("deadline", ""),
+    )
+    return [types.TextContent(type="text", text=json.dumps({
+        "status": "ok",
+        "message": f"选题已加入待审队列",
+        "topic": entry,
+    }, ensure_ascii=False))]
+
+
+async def _approve_topic(args: dict) -> list[types.TextContent]:
+    from sources.topic_manager import approve_topic
+
+    entry = approve_topic(args["topic_id"], note=args.get("note", ""))
+    if entry is None:
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "error",
+            "message": f"未找到 topic_id={args['topic_id']}，请用 wechat_list_topics 确认",
+        }, ensure_ascii=False))]
+    return [types.TextContent(type="text", text=json.dumps({
+        "status": "ok",
+        "message": "选题已移入 approved 队列",
+        "topic": entry,
+    }, ensure_ascii=False))]
+
+
+async def _list_topics(args: dict) -> list[types.TextContent]:
+    from sources.topic_manager import list_topics
+
+    queue = args.get("queue", "all")
+    account = args.get("account", "")
+    priority = args.get("priority", "")
+
+    result = list_topics(queue=queue, account=account, priority=priority)
+    total = sum(len(v) for v in result.values())
+
+    return [types.TextContent(type="text", text=json.dumps({
+        "status": "ok",
+        "queue": queue,
+        "total": total,
+        "topics": result,
     }, ensure_ascii=False))]
 
 
