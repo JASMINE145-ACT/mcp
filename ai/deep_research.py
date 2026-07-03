@@ -1,65 +1,34 @@
-"""服务端深度调研：把 superpowers deep-research 技能的多源搜索+综合流程
+"""服务端调研辅助：把 superpowers deep-research 技能里"多源搜索+去重+深读"这部分
 
-搬进 MCP server 本身，使其不依赖客户端（Claude Code 等）是否装了
-对应技能——任何 MCP 客户端/模型调用 wechat_deep_research 都能拿到
-同样带引用来源的调研报告。
+搬进 MCP server 本身，使其不依赖客户端（Claude Code 等）是否装了对应技能——
+任何 MCP 客户端调用 wechat_deep_research 都能拿到同样并行、带时效性偏好、
+带全文深读的原始资料。
 
-相比原版技能，这版额外做了：并行多源搜索（不再逐个子问题串行请求）、
-时效性偏好（默认只要近12个月的资料，查不到时自动放宽重试一次）、
-对排名靠前的来源做全文深读（不再只依赖搜索摘要）、
-以及综合报告里显式要求标注信息缺口、区分事实与推测。
+"拆子问题"和"综合成报告"这两步刻意**没有**放在这里、也不调用任何 LLM API：
+调用方（正在编排整个流程的那个模型）本身就是一个 LLM，能直接做这部分推理，
+而且比 MCP 内部单独调一个模型看到的上下文更完整（已确认的写作角度、目标读者、
+数据真实性要求等）。让 MCP 只做纯机械的检索/去重/抓取，不需要 MCP 自己维护
+OPENAI_API_KEY，也避免了"两个模型接力做同一类工作"的浪费。
 """
 
-import json
 import os
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
 
 from loguru import logger
-from openai import OpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 RECENCY_TAVILY_RANGE = {"any": None, "month": "month", "year": "year"}
 RECENCY_DAYS = {"any": None, "month": 30, "year": 365}
 
-
-def _extract_json(text: str) -> dict:
-    text = re.sub(r"^```(?:json)?\s*", "", text.strip())
-    text = re.sub(r"\s*```$", "", text.strip())
-    return json.loads(text)
-
-
-def _openai_client():
-    from config.settings import get_settings
-    s = get_settings()
-    return OpenAI(api_key=s.OPENAI_API_KEY), (s.OPENAI_MODEL or "gpt-4.1")
-
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def plan_subquestions(topic: str, num_subquestions: int = 4) -> list[str]:
-    """把调研主题拆成若干个适合直接搜索的子问题。"""
-    client, model = _openai_client()
-    current_year = datetime.now().year
-    prompt = (
-        f"把下面这个调研主题拆解成 {num_subquestions} 个具体的子问题，"
-        "每个子问题聚焦一个明确角度，适合直接拿去做网络搜索，不要相互重复。"
-        f"现在是 {current_year} 年，涉及行业现状/数据/排名的子问题请体现出对最新情况的关注"
-        "（例如措辞里包含年份或“最新”“现状”等），不要问成历史科普题。\n\n"
-        f"主题：{topic}\n\n"
-        '只返回 JSON：{"subquestions": ["...", "...", ...]}'
-    )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        response_format={"type": "json_object"},
-    )
-    raw = response.choices[0].message.content or "{}"
-    data = _extract_json(raw)
-    subquestions = data.get("subquestions") or [topic]
-    return subquestions[:num_subquestions] or [topic]
+REPORT_QUALITY_GUIDE = """写调研报告时请遵守（这部分推理由你——调用方模型——直接完成，不是 MCP 帮你写）：
+1. 每个关键论点后标注对应来源（用来源的 title/url 或编号），不要写无来源支撑的断言
+2. 只使用下面 sources 里出现的信息，不要编造或引用资料之外的数据
+3. 如果某个说法只有单一来源支撑，标注"未交叉验证"
+4. 优先采信 published_date 较新、或 deep_read=true 的资料；明显过时的信息标注"可能已过时"
+5. gaps 字段里列出的子问题（没搜到有效资料）要在报告里明确指出信息缺口，不要略过不提
+6. 清楚区分"已证实的事实"和"预测/推测/评论性判断"，后者标注"（推测/预期）"
+7. 报告建议包含：概述、按主题分小节、关键结论、信息缺口（如有）、来源列表、方法说明（子问题数/来源数/整体置信度）"""
 
 
 def search_tavily(query: str, num_results: int = 5, recency: str = "year") -> list[dict]:
@@ -222,77 +191,47 @@ def deep_read_top_sources(
     return sources
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def synthesize_report(topic: str, subquestions: list[str], sources: list[dict]) -> str:
-    client, model = _openai_client()
-    sources_text = "\n\n".join(
-        f"[{i + 1}] {s['title']} ({s['url']})"
-        f"{' [已全文深读]' if s.get('deep_read') else ''}"
-        f"{' [' + s['published_date'] + ']' if s.get('published_date') else ''}\n"
-        f"{s['content'][:3000 if s.get('deep_read') else 1500]}"
-        for i, s in enumerate(sources)
-    )
-    prompt = f"""你是一个调研分析师。基于下面收集到的资料，就"{topic}"这个主题写一份结构化调研报告。
-
-要求：
-1. 每个关键论点后面用 [编号] 标注对应来源，编号对应资料列表里的序号
-2. 只使用资料中出现的信息，不要编造或引用资料之外的数据
-3. 如果某个说法只有单一来源支撑，在文中提示"未交叉验证"
-4. 优先采信标注了较新发布日期、或已全文深读的资料；如果发现资料明显过时，在文中提示"该信息可能已过时"
-5. 如果某个子问题没有搜到有效资料，在报告里明确指出这个信息缺口，不要略过不提
-6. 清楚区分"已证实的事实"和"预测/推测/评论性判断"——对预测、展望、观点性内容要标注"（推测/预期）"等字样，不要把推测写得像既定事实
-7. 用 Markdown 格式，包含：概述、按主题分的小节、关键结论、信息缺口（如有）、来源列表（标题+URL）、方法说明（搜了几个子问题、覆盖了几条来源、整体置信度 高/中/低及理由）
-
-调研的子问题：
-{chr(10).join(f"- {q}" for q in subquestions)}
-
-收集到的资料：
-{sources_text}
-"""
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.4,
-        max_tokens=4096,
-    )
-    return response.choices[0].message.content or ""
-
-
-def run_deep_research(
+def gather_research_sources(
     topic: str,
-    num_subquestions: int = 4,
+    subquestions: list[str],
     num_results_per_query: int = 5,
     recency: str = "year",
     deep_read_top_n: int = 5,
 ) -> dict:
-    """完整跑一遍：拆子问题 → 并行多源搜索去重 → 深读高分来源 → 综合成带引用的报告。
+    """并行多源搜索去重 → 深读高分来源 → 返回原始资料供调用方自己综合成报告。
+
+    不调用任何 LLM——subquestions 由调用方（正在编排流程的模型）先规划好再传进来，
+    最终的报告综合也由调用方自己完成，这里只负责机械的检索/去重/抓取。
 
     recency: "any" | "month" | "year"（默认 year，对应"优先近12个月资料"；
     某个查询在该范围内搜不到结果时会自动放宽重试一次，不是硬性过滤）。
     """
-    logger.info(f"deep_research 开始：{topic}（recency={recency}）")
-    subquestions = plan_subquestions(topic, num_subquestions)
+    logger.info(f"gather_research_sources 开始：{topic}（recency={recency}）")
     sources = gather_sources(subquestions, num_results_per_query, recency)
     if not sources:
         raise RuntimeError(
             "没有搜到任何资料，请检查 .env 里 TAVILY_API_KEY / EXA_API_KEY 是否至少配置了一个"
         )
     sources = deep_read_top_sources(sources, top_n=deep_read_top_n)
-    report = synthesize_report(topic, subquestions, sources)
+    covered_subquestions = {s["subquestion"] for s in sources}
+    gaps = [q for q in subquestions if q not in covered_subquestions]
     num_deep_read = sum(1 for s in sources if s.get("deep_read"))
     logger.info(
-        f"deep_research 完成：{len(sources)} 条来源（{num_deep_read} 条已深读），"
-        f"报告 {len(report)} 字符"
+        f"gather_research_sources 完成：{len(sources)} 条来源（{num_deep_read} 条已深读），"
+        f"{len(gaps)} 个子问题无结果"
     )
     return {
         "topic": topic,
         "subquestions": subquestions,
-        "report_markdown": report,
+        "gaps": gaps,
+        "quality_guide": REPORT_QUALITY_GUIDE,
         "sources": [
             {
                 "url": s["url"],
                 "title": s["title"],
                 "source": s["source"],
+                "subquestion": s["subquestion"],
+                "content": s["content"],
                 "score": round(s.get("score", 0.0), 3),
                 "deep_read": s.get("deep_read", False),
                 "published_date": s.get("published_date", ""),

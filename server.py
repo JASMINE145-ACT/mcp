@@ -7,7 +7,8 @@ Claude 负责生成文章内容，本 server 提供微信操作工具：
 - wechat_research          用 Exa 搜索资料，返回结构化摘要供写稿使用
 - wechat_tavily_search     用 Tavily 搜索最新资料，返回标题+URL+摘要，适合写稿前收集素材
 - wechat_fetch_url         用 Scrapling 抓取指定 URL 的正文内容，无需 API key
-- wechat_deep_research     服务端深度调研：拆子问题→多源搜索→综合成带引用报告，写文章类任务优先用这个
+- wechat_deep_research     并行多源搜索（Tavily+Exa）→去重→深读高分来源，返回原始资料；
+                           拆子问题和综合报告由调用方模型自己做，本工具不调用任何 LLM
 
 图片处理：
 - wechat_search_cover_image  根据关键词搜索封面图，返回 URL 列表
@@ -79,8 +80,11 @@ SERVER_INSTRUCTIONS = """本 server 面向"写一篇公众号文章"这类任务
       不要把"想个角度"这个负担甩给用户
    d. 用户明确认可某个角度后，才调用 wechat_deep_research / 开始写作
    方向已经足够具体（用户已给出角度/结论倾向）时可以跳过 a-c，直接确认后进入调研。
-1. 调研：整篇文章用 wechat_deep_research（服务端多轮 Tavily+Exa 调研+AI综合，
-   带编号引用）；只是核实一条信息、抓一个链接等轻量任务，直接用
+1. 调研：整篇文章先自己把 topic+angle 拆成 3-5 个具体子问题，调用
+   wechat_deep_research(topic, angle, subquestions) 拿到并行搜索+去重+深读
+   后的原始资料（sources）和写作要求提示（quality_guide）——注意这一步*不会*
+   返回现成的报告，综合成报告是你自己接下来要做的事，不是 MCP 帮你做；
+   只是核实一条信息、抓一个链接等轻量任务，直接用
    wechat_tavily_search / wechat_research / wechat_fetch_url 更快。
 2. 数据真实性：文中数字、事实性声明必须有明确来源，不确定的信息要加"据报道"
    "约"等限定语，不得使用无数据支撑的夸大表述。用 wechat_save_sources 记录引用。
@@ -291,11 +295,15 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="wechat_deep_research",
             description=(
-                "写文章前的深度调研：把主题拆成若干子问题，对每个子问题**并行**调用 Tavily + Exa 搜索，"
+                "写文章前的资料收集：对你（调用方模型）自己规划好的子问题**并行**调用 Tavily + Exa 搜索，"
                 "按 URL 去重后，对得分最高的几个来源尝试抓全文深读（而不只是搜索摘要），"
-                "最后交给 AI 综合成一份带编号引用、区分事实与推测、标注信息缺口的调研报告（Markdown）。"
-                "这是服务端内置能力，不依赖客户端自带的调研技能——任何模型/客户端调用本 MCP 都能拿到同等效果。"
-                "写文章类任务建议先调用此工具拿到 report_markdown，再把关键信息整理进 wechat_full_pipeline 的正文；"
+                "返回原始资料 + 质量要求提示，由你自己综合写成调研报告——"
+                "本工具**不调用任何 LLM**，不需要配置 OPENAI_API_KEY，只需要 TAVILY_API_KEY 和/或 "
+                "EXA_API_KEY（至少一个）。"
+                "拆子问题和最终综合报告都由你自己做：你已经知道确认好的角度/受众/语气要求，"
+                "比 MCP 内部单独调一次模型看到的上下文更完整，没必要让 MCP 再调一次别的模型重复这部分推理。"
+                "写文章类任务建议：先把 topic+angle 拆成 3-5 个具体子问题，调用此工具拿到 sources，"
+                "再按返回的 quality_guide 自己写报告、整理进 wechat_full_pipeline 的正文；"
                 "只是想查一条信息、核实单个事实这种轻量任务不需要用这个，直接用 wechat_tavily_search / wechat_research 更快。"
                 "angle 为硬性必填：调用前必须已经和用户确认过写作角度，不能拿一个笼统 topic 直接跑。"
                 "如果用户只给了一个笼统方向（没说清写作角度、侧重点、目标读者、篇幅或结论倾向），"
@@ -303,9 +311,7 @@ async def list_tools() -> list[types.Tool]:
                 "受众/结论倾向后，主动提出2-3个具体切入角度供用户选（带推荐理由），用户确认后再"
                 "把确认好的角度填进 angle 参数调用此工具；不要为了绕过校验而随手编一个角度、"
                 "或把 topic 原样复制进 angle。"
-                "宽泛不带角度的调研会导致拆出的子问题和综合报告方向发散，返回内容对不上用户真正想要的角度，"
-                "白白消耗调研成本。"
-                "需要在 .env 配置 OPENAI_API_KEY（拆题+综合报告），以及 TAVILY_API_KEY 和/或 EXA_API_KEY（至少一个，用于搜索）。"
+                "宽泛不带角度的调研会导致子问题和最终报告方向发散，白白消耗调研成本。"
             ),
             inputSchema={
                 "type": "object",
@@ -319,14 +325,18 @@ async def list_tools() -> list[types.Tool]:
                         "description": (
                             "已经和用户确认过的写作角度/侧重点，例如"
                             "'对比国产大模型API定价策略，站在中小企业采购视角，结论倾向国产性价比更高'。"
-                            "硬性必填——用来确保调研前已经完成方向澄清，不是随便填一句话应付过去；"
-                            "会和 topic 一起送入调研，直接影响拆出的子问题方向。"
+                            "硬性必填——用来确保调研前已经完成方向澄清，不是随便填一句话应付过去。"
                         ),
                     },
-                    "num_subquestions": {
-                        "type": "integer",
-                        "description": "把主题拆成几个子问题，默认 4",
-                        "default": 4,
+                    "subquestions": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "由你（调用方模型）自己拆解好的 3-5 个具体子问题，每个聚焦一个明确角度、"
+                            "适合直接拿去搜索，不要相互重复；结合 topic 和 angle 来拆，涉及行业现状/"
+                            "数据/排名的子问题措辞里带上年份或“最新”“现状”，不要问成历史科普题。"
+                            "硬性必填——这一步不再由 MCP 内部调 LLM 完成。"
+                        ),
                     },
                     "num_results_per_query": {
                         "type": "integer",
@@ -344,7 +354,7 @@ async def list_tools() -> list[types.Tool]:
                         "default": "year",
                     },
                 },
-                "required": ["topic", "angle"],
+                "required": ["topic", "angle", "subquestions"],
             },
         ),
         types.Tool(
@@ -1188,7 +1198,7 @@ async def _research(args: dict) -> list[types.TextContent]:
 
 
 async def _deep_research(args: dict) -> list[types.TextContent]:
-    from ai.deep_research import run_deep_research
+    from ai.deep_research import gather_research_sources
 
     topic = args["topic"]
     angle = args.get("angle", "").strip()
@@ -1202,13 +1212,21 @@ async def _deep_research(args: dict) -> list[types.TextContent]:
             ),
         }, ensure_ascii=False))]
 
-    research_topic = f"{topic}（写作角度/侧重点：{angle}）"
-    num_subquestions = int(args.get("num_subquestions", 4))
+    subquestions = [q.strip() for q in args.get("subquestions", []) if q.strip()]
+    if not subquestions:
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "blocked",
+            "message": (
+                "subquestions 为空。请先结合 topic 和 angle 自己拆出 3-5 个具体子问题"
+                "（本工具不再内置 LLM 帮你拆），再带着 subquestions 重新调用本工具。"
+            ),
+        }, ensure_ascii=False))]
+
     num_results_per_query = min(int(args.get("num_results_per_query", 5)), 10)
     recency = args.get("recency", "year")
 
     try:
-        result = run_deep_research(research_topic, num_subquestions, num_results_per_query, recency)
+        result = gather_research_sources(topic, subquestions, num_results_per_query, recency)
     except Exception as e:
         return [types.TextContent(type="text", text=json.dumps({
             "status": "error",
@@ -1222,9 +1240,10 @@ async def _deep_research(args: dict) -> list[types.TextContent]:
             "topic": topic,
             "angle": angle,
             "subquestions": result["subquestions"],
+            "gaps": result["gaps"],
             "num_sources": len(result["sources"]),
-            "report_markdown": result["report_markdown"],
             "sources": result["sources"],
+            "quality_guide": result["quality_guide"],
         }, ensure_ascii=False),
     )]
 
