@@ -66,7 +66,36 @@ import mcp.server.stdio
 import mcp.types as types
 from mcp.server import Server
 
-server = Server("wechat-publisher")
+SERVER_INSTRUCTIONS = """本 server 面向"写一篇公众号文章"这类任务，推荐流程：
+
+0. 【方向澄清，先于一切】如果用户只给了一个笼统方向（没说清写作角度、侧重点、
+   目标读者、篇幅或结论倾向），不要直接开始调研或写作。先向用户提问、讨论确认
+   这些要点——类似 brainstorming：想强调哪个角度？面向什么读者？核心观点/结论
+   倾向是什么？有没有想对比的对象？篇幅预期？方向已经足够具体时可跳过此步。
+1. 调研：整篇文章用 wechat_deep_research（服务端多轮 Tavily+Exa 调研+AI综合，
+   带编号引用）；只是核实一条信息、抓一个链接等轻量任务，直接用
+   wechat_tavily_search / wechat_research / wechat_fetch_url 更快。
+2. 数据真实性：文中数字、事实性声明必须有明确来源，不确定的信息要加"据报道"
+   "约"等限定语，不得使用无数据支撑的夸大表述。用 wechat_save_sources 记录引用。
+3. 配图：wechat_search_cover_image 选封面图 → wechat_download_image 下载。
+   cover_path 实质必填——DEFAULT_COVER_PATH 指向的默认封面文件不一定存在，
+   不传路径大概率导致封面上传失败。
+4. 硬性字数限制（微信按字节计算，中文每字 3 字节）：
+   - 标题上限约 64 字节 ≈ 21 个汉字（超限报错 45003）
+   - 摘要上限约 120 字节 ≈ 40 个汉字，建议控制在 20 个汉字以内（超限报错 45004）
+5. 写作校验：wechat_validate_content 检查 AI 口吻、占位符、标题党用词、
+   事实来源缺失等问题。
+6. 建稿：wechat_full_pipeline 一步完成渲染→传封面→建草稿；中途失败用
+   wechat_resume_task 续跑。
+7. 发布前复核：wechat_preview_task → wechat_audit_before_publish，
+   blockers 必须修复才能发布。
+8. 发布：wechat_publish（需 ENABLE_AUTO_PUBLISH=true，不可撤销）。
+
+选题队列（wechat_add_topic/approve_topic/list_topics）目前只是状态记事本：
+approve 不会自动触发调研/写作，队列里没有 reject/mark-published 工具
+（底层 sources/topic_manager.py 里有实现，尚未接入 MCP 工具层）。"""
+
+server = Server("wechat-publisher", instructions=SERVER_INSTRUCTIONS)
 
 
 @server.list_tools()
@@ -154,10 +183,10 @@ async def list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "title": {"type": "string", "description": "文章标题"},
+                    "title": {"type": "string", "description": "文章标题（微信限制约 64 字节 ≈ 21 个汉字，超限报错 45003）"},
                     "content_html": {"type": "string", "description": "文章 HTML 正文（通过 wechat_render_markdown 生成）"},
                     "thumb_media_id": {"type": "string", "description": "封面图素材 ID（通过 wechat_upload_cover 获取）"},
-                    "digest": {"type": "string", "description": "文章摘要，不超过 120 字"},
+                    "digest": {"type": "string", "description": "文章摘要，微信限制约 120 字节 ≈ 40 个汉字（超限报错 45004），建议控制在 20 个汉字以内留余量"},
                     "author": {"type": "string", "description": "作者名，默认 2AIBot"},
                     "source_url": {"type": "string", "description": "原文链接（可选）"},
                 },
@@ -260,6 +289,10 @@ async def list_tools() -> list[types.Tool]:
                 "这是服务端内置能力，不依赖客户端自带的调研技能——任何模型/客户端调用本 MCP 都能拿到同等效果。"
                 "写文章类任务建议先调用此工具拿到 report_markdown，再把关键信息整理进 wechat_full_pipeline 的正文；"
                 "只是想查一条信息、核实单个事实这种轻量任务不需要用这个，直接用 wechat_tavily_search / wechat_research 更快。"
+                "调用前建议先确认选题方向是否足够具体：如果用户只给了一个笼统方向（没说清写作角度、"
+                "侧重点、目标读者、篇幅或结论倾向），应先和用户讨论确认这些要点再调用此工具——"
+                "宽泛的 topic 会导致拆出的子问题和综合报告方向发散，返回内容对不上用户真正想要的角度，"
+                "白白消耗调研成本。方向已经足够具体（用户已给出角度/结论倾向）时可直接调用。"
                 "需要在 .env 配置 OPENAI_API_KEY（拆题+综合报告），以及 TAVILY_API_KEY 和/或 EXA_API_KEY（至少一个，用于搜索）。"
             ),
             inputSchema={
@@ -423,7 +456,7 @@ async def list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "media_id": {"type": "string", "description": "要更新的草稿 media_id"},
-                    "title": {"type": "string", "description": "新标题（不超过 64 字符）"},
+                    "title": {"type": "string", "description": "新标题（微信限制约 64 字节 ≈ 21 个汉字，超限报错 45003，不是 64 个字符）"},
                     "content_html": {
                         "type": "string",
                         "description": "新 HTML 正文（通过 wechat_render_markdown 生成）",
@@ -432,7 +465,7 @@ async def list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "封面素材 ID（通过 wechat_upload_cover 获取）",
                     },
-                    "digest": {"type": "string", "description": "新摘要（不超过 120 字）"},
+                    "digest": {"type": "string", "description": "新摘要（微信限制约 120 字节 ≈ 40 个汉字，超限报错 45004，建议 20 个汉字以内）"},
                     "author": {"type": "string", "description": "作者名（不超过 8 字）"},
                     "source_url": {"type": "string", "description": "原文链接（可选）"},
                 },
@@ -502,13 +535,17 @@ async def list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "title": {"type": "string", "description": "文章标题"},
+                    "title": {"type": "string", "description": "文章标题（微信限制约 64 字节 ≈ 21 个汉字，超限报错 45003）"},
                     "markdown": {"type": "string", "description": "文章 Markdown 正文"},
-                    "digest": {"type": "string", "description": "摘要（不超过 120 字）"},
+                    "digest": {"type": "string", "description": "摘要（微信限制约 120 字节 ≈ 40 个汉字，超限报错 45004，建议 20 个汉字以内留余量）"},
                     "author": {"type": "string", "description": "作者名，默认 2AIBot"},
                     "cover_path": {
                         "type": "string",
-                        "description": "封面图本地路径，不填则使用默认封面",
+                        "description": (
+                            "封面图本地路径。实质必填——若不填会尝试用 DEFAULT_COVER_PATH，"
+                            "但该环境变量指向的文件不一定存在，不存在则上传封面这一步会失败。"
+                            "建议先调用 wechat_search_cover_image 选图，再用 wechat_download_image 下载后传路径进来。"
+                        ),
                     },
                     "source_url": {"type": "string", "description": "原文链接（可选）"},
                     "topic_slug": {"type": "string", "description": "主题关键词，用于命名存储目录"},
@@ -635,7 +672,11 @@ async def list_tools() -> list[types.Tool]:
         # ── Topic library ─────────────────────────────────────────────────────
         types.Tool(
             name="wechat_add_topic",
-            description="将一个选题添加到待审队列（pending）。选题审批后可变为 approved，再由 full_pipeline 消费。",
+            description=(
+                "将一个选题添加到待审队列（pending）。选题审批后可变为 approved，再由 full_pipeline 消费。"
+                "如果选题只是一个笼统方向（angle 留空、没有明确侧重点/目标读者），"
+                "建议先和用户讨论确认写作角度后再提交，避免 approve 后写作阶段才发现方向不对。"
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -647,7 +688,10 @@ async def list_tools() -> list[types.Tool]:
                         "description": "优先级，默认 normal",
                         "default": "normal",
                     },
-                    "angle": {"type": "string", "description": "写作角度（可选）"},
+                    "angle": {
+                        "type": "string",
+                        "description": "写作角度（可选，但强烈建议填写——留空说明方向还笼统，应先与用户讨论确认角度/侧重点/目标读者）",
+                    },
                     "source_urls": {
                         "type": "array",
                         "items": {"type": "string"},

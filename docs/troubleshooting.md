@@ -7,9 +7,11 @@
 **现象**：运行 `test-wechat` 提示 IP 白名单错误
 
 **解决**：
-1. 查看本机公网 IP：`curl ifconfig.me`
+1. 查看本机公网 IP：`curl ifconfig.me`（或 `curl https://api.ipify.org`）
 2. 登录公众号后台 → 设置与开发 → 基本配置 → IP白名单
 3. 添加当前服务器 IP
+4. **加完可能要等 1-2 分钟才生效**，第一次重试失败不代表没加对，过一会儿再试
+5. 家庭宽带等动态 IP 环境，白名单可能因为出口 IP 变化而失效，需要定期核对重新添加
 
 ### 错误码 40013：不合法的 AppID
 
@@ -22,6 +24,21 @@
 **现象**：AppSecret 错误
 
 **解决**：在公众号后台重新生成 AppSecret，更新 `.env`
+
+### MCP 工具报错 `No module named 'requests'` / `'bs4'`
+
+**现象**：`wechat_tavily_search`、`wechat_research`、`wechat_search_cover_image`、
+`wechat_download_image`、`wechat_upload_local_image` 等所有联网工具报错找不到模块。
+
+**根因**：MCP 客户端配置里 `"command"` 如果指向系统全局 Python（而不是本项目
+`.venv`），`requirements.txt` 里的 `requests`/`beautifulsoup4` 等依赖没有装到那个
+全局解释器里。
+
+**解决**：
+1. 先跑 `wechat_health_check`，看返回的 `dependencies` 数组里哪些 `installed: false`
+2. 对着 MCP 配置里实际指向的 Python 执行 `python -m pip install -r requirements.txt`
+   （不确定指向哪个解释器时，在该 Python 里跑 `import sys; print(sys.executable)` 核对）
+3. 装完不需要重启 MCP 连接，`wechat_health_check` 立即能看到 `installed: true`
 
 ### 封面图上传失败
 
