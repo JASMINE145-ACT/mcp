@@ -68,10 +68,17 @@ from mcp.server import Server
 
 SERVER_INSTRUCTIONS = """本 server 面向"写一篇公众号文章"这类任务，推荐流程：
 
-0. 【方向澄清，先于一切】如果用户只给了一个笼统方向（没说清写作角度、侧重点、
-   目标读者、篇幅或结论倾向），不要直接开始调研或写作。先向用户提问、讨论确认
-   这些要点——类似 brainstorming：想强调哪个角度？面向什么读者？核心观点/结论
-   倾向是什么？有没有想对比的对象？篇幅预期？方向已经足够具体时可跳过此步。
+0. 【方向澄清，先于一切，参照 brainstorming 的对话风格】如果用户只给了一个笼统
+   方向（没说清写作角度、侧重点、目标读者、篇幅或结论倾向），不要直接开始调研
+   或写作，也不要一次性抛一堆问题。按这个节奏走：
+   a. 一次只问一个问题；优先给选择题而不是开放式问题（"这几个角度选一个：
+      A/B/C"比"你想从什么角度写"更容易回答，选择困难时才追加开放式追问）
+   b. 依次澄清：核心角度/侧重点是什么？目标读者是谁？想传达的结论倾向是什么？
+      篇幅预期？有没有想对比的对象？
+   c. 澄清得差不多后，主动提出 2-3 个具体切入角度，带你的推荐和理由——
+      不要把"想个角度"这个负担甩给用户
+   d. 用户明确认可某个角度后，才调用 wechat_deep_research / 开始写作
+   方向已经足够具体（用户已给出角度/结论倾向）时可以跳过 a-c，直接确认后进入调研。
 1. 调研：整篇文章用 wechat_deep_research（服务端多轮 Tavily+Exa 调研+AI综合，
    带编号引用）；只是核实一条信息、抓一个链接等轻量任务，直接用
    wechat_tavily_search / wechat_research / wechat_fetch_url 更快。
@@ -284,15 +291,20 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="wechat_deep_research",
             description=(
-                "写文章前的深度调研：把主题拆成若干子问题，对每个子问题并行调用 Tavily + Exa 搜索，"
-                "按 URL 去重后交给 AI 综合成一份带编号引用的调研报告（Markdown）。"
+                "写文章前的深度调研：把主题拆成若干子问题，对每个子问题**并行**调用 Tavily + Exa 搜索，"
+                "按 URL 去重后，对得分最高的几个来源尝试抓全文深读（而不只是搜索摘要），"
+                "最后交给 AI 综合成一份带编号引用、区分事实与推测、标注信息缺口的调研报告（Markdown）。"
                 "这是服务端内置能力，不依赖客户端自带的调研技能——任何模型/客户端调用本 MCP 都能拿到同等效果。"
                 "写文章类任务建议先调用此工具拿到 report_markdown，再把关键信息整理进 wechat_full_pipeline 的正文；"
                 "只是想查一条信息、核实单个事实这种轻量任务不需要用这个，直接用 wechat_tavily_search / wechat_research 更快。"
-                "调用前建议先确认选题方向是否足够具体：如果用户只给了一个笼统方向（没说清写作角度、"
-                "侧重点、目标读者、篇幅或结论倾向），应先和用户讨论确认这些要点再调用此工具——"
-                "宽泛的 topic 会导致拆出的子问题和综合报告方向发散，返回内容对不上用户真正想要的角度，"
-                "白白消耗调研成本。方向已经足够具体（用户已给出角度/结论倾向）时可直接调用。"
+                "angle 为硬性必填：调用前必须已经和用户确认过写作角度，不能拿一个笼统 topic 直接跑。"
+                "如果用户只给了一个笼统方向（没说清写作角度、侧重点、目标读者、篇幅或结论倾向），"
+                "应像 brainstorming 一样先和用户对齐——一次只问一个问题、优先给选择题，澄清角度/"
+                "受众/结论倾向后，主动提出2-3个具体切入角度供用户选（带推荐理由），用户确认后再"
+                "把确认好的角度填进 angle 参数调用此工具；不要为了绕过校验而随手编一个角度、"
+                "或把 topic 原样复制进 angle。"
+                "宽泛不带角度的调研会导致拆出的子问题和综合报告方向发散，返回内容对不上用户真正想要的角度，"
+                "白白消耗调研成本。"
                 "需要在 .env 配置 OPENAI_API_KEY（拆题+综合报告），以及 TAVILY_API_KEY 和/或 EXA_API_KEY（至少一个，用于搜索）。"
             ),
             inputSchema={
@@ -301,6 +313,15 @@ async def list_tools() -> list[types.Tool]:
                     "topic": {
                         "type": "string",
                         "description": "调研主题，越具体效果越好，例如 '大语言模型预训练的原理、数据规模与训练成本 2026'",
+                    },
+                    "angle": {
+                        "type": "string",
+                        "description": (
+                            "已经和用户确认过的写作角度/侧重点，例如"
+                            "'对比国产大模型API定价策略，站在中小企业采购视角，结论倾向国产性价比更高'。"
+                            "硬性必填——用来确保调研前已经完成方向澄清，不是随便填一句话应付过去；"
+                            "会和 topic 一起送入调研，直接影响拆出的子问题方向。"
+                        ),
                     },
                     "num_subquestions": {
                         "type": "integer",
@@ -312,8 +333,18 @@ async def list_tools() -> list[types.Tool]:
                         "description": "每个子问题每个搜索源返回几条结果，默认 5，最多 10",
                         "default": 5,
                     },
+                    "recency": {
+                        "type": "string",
+                        "enum": ["any", "month", "year"],
+                        "description": (
+                            "时效性偏好，默认 year（优先近12个月资料，某个子问题在这个范围内"
+                            "搜不到结果时会自动放宽重试一次，不是硬性过滤）。"
+                            "变化快的话题（AI/科技/市场）用默认值；需要历史背景类资料的话题可传 any。"
+                        ),
+                        "default": "year",
+                    },
                 },
-                "required": ["topic"],
+                "required": ["topic", "angle"],
             },
         ),
         types.Tool(
@@ -675,7 +706,8 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "将一个选题添加到待审队列（pending）。选题审批后可变为 approved，再由 full_pipeline 消费。"
                 "如果选题只是一个笼统方向（angle 留空、没有明确侧重点/目标读者），"
-                "建议先和用户讨论确认写作角度后再提交，避免 approve 后写作阶段才发现方向不对。"
+                "建议先像 brainstorming 一样和用户一问一答对齐角度（一次一个问题、优先选择题），"
+                "必要时提出2-3个候选角度供用户选，再提交，避免 approve 后写作阶段才发现方向不对。"
             ),
             inputSchema={
                 "type": "object",
@@ -1159,11 +1191,24 @@ async def _deep_research(args: dict) -> list[types.TextContent]:
     from ai.deep_research import run_deep_research
 
     topic = args["topic"]
+    angle = args.get("angle", "").strip()
+    if not angle:
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "blocked",
+            "message": (
+                "angle 为空。请先和用户确认写作角度/侧重点（像 brainstorming 一样一次问一个"
+                "问题、优先选择题，必要时提出2-3个候选角度供用户选），拿到用户确认的角度后"
+                "再带着 angle 重新调用本工具；不要用 topic 原样填充 angle 来绕过这一步。"
+            ),
+        }, ensure_ascii=False))]
+
+    research_topic = f"{topic}（写作角度/侧重点：{angle}）"
     num_subquestions = int(args.get("num_subquestions", 4))
     num_results_per_query = min(int(args.get("num_results_per_query", 5)), 10)
+    recency = args.get("recency", "year")
 
     try:
-        result = run_deep_research(topic, num_subquestions, num_results_per_query)
+        result = run_deep_research(research_topic, num_subquestions, num_results_per_query, recency)
     except Exception as e:
         return [types.TextContent(type="text", text=json.dumps({
             "status": "error",
@@ -1174,7 +1219,8 @@ async def _deep_research(args: dict) -> list[types.TextContent]:
         type="text",
         text=json.dumps({
             "status": "ok",
-            "topic": result["topic"],
+            "topic": topic,
+            "angle": angle,
             "subquestions": result["subquestions"],
             "num_sources": len(result["sources"]),
             "report_markdown": result["report_markdown"],
