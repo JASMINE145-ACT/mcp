@@ -81,7 +81,8 @@ def search_exa(query: str, num_results: int = 5, recency: str = "year") -> list[
     )
 
     def _do_search(published_after: Optional[str]) -> list[dict]:
-        kwargs = {"num_results": num_results, "text": {"max_characters": 2000}, "use_autoprompt": True}
+        # 旧版 exa-py 的 use_autoprompt 参数已被移除，当前 SDK 用 type="auto"（也是默认值）
+        kwargs = {"num_results": num_results, "text": {"max_characters": 2000}, "type": "auto"}
         if published_after:
             kwargs["start_published_date"] = published_after
         response = exa.search_and_contents(query, **kwargs)
